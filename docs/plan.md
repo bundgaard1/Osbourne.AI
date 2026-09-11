@@ -249,6 +249,36 @@ hey -n 200 -c 20 http://localhost/api/v1/courses
 
 - Add list of files to modules!
 
-### Assignment Service (SQL) - Additional Features
+---
 
-- Move the grade into the submission!, I just complicates things to have a separate table for grades. The submission table can have a grade column, and we can just update that when the instructor grades the submission.
+## Issues and Additional Features
+
+### Critical Bugs
+
+- [x] **Inverted ID generation in CreateModule** — `course-content-service/internal/service/module-service.go:25` generates a UUID only when `module.ID != ""`, which is the opposite of what you want. Should be `== ""`.
+- [ ] **DeleteModule does nothing** — `course-content-service/internal/service/module-service.go:67-77` validates the module exists but never calls `s.repo.DeleteModule()`. Deletions silently no-op.
+- [ ] **No authentication** — `frontend/internal/handler/handler.go:59-61` reads user identity from `?id=` query param with a hardcoded fallback `"12345"`. Anyone can impersonate any user. Auth-service is a skeleton with no implementation.
+- [ ] **All gRPC traffic is unencrypted** — All 5 frontend gRPC clients use `insecure.NewCredentials()`. No TLS, no mTLS.
+
+### High Priority Issues
+
+- [ ] **RabbitMQ routing key mismatch** — Notification consumer subscribes to `"student.*"` but also handles `"course.enrolled"` events. With a topic exchange, `course.enrolled` messages will never reach this consumer. Dead code at the network level.
+- [ ] **Hardcoded `guest:guest` RabbitMQ credentials** in `docker-compose.yml:40-41` with the management dashboard (port 15672) exposed to the host.
+- [x] **Debug print left in** — `course-catalogue-service/cmd/main.go:21` has `fmt.Println("hej")`.
+- [ ] **Panic in repository constructor** — `course-content-service/internal/repository/clover-content.go:23` calls `panic()` instead of returning an error.
+
+### Test Coverage Gaps
+
+- [ ] **No tests** for `course-catalogue-service`, `notification-service`, or `auth-service`.
+- [ ] **Broken test assertions** — `course-content-service/internal/repository/clover_content_test.go:69-83` compares `UpdatedAt` four times instead of verifying Title, ID, and CourseID. Tests pass but don't actually validate what they claim.
+
+### Structural / Quality Issues
+
+- [ ] **No CI/CD pipeline** — No GitHub Actions, GitLab CI, or any automation.
+- [ ] **No linting/formatting** — No `.golangci.yml` or equivalent.
+- [ ] **No health check endpoints** — No `/healthz` on any service. No Docker health checks on Go services.
+- [ ] **No structured logging** — All services use `log.Printf`. No log levels, no correlation IDs, no JSON output. GORM `logger.Info` is active in production.
+- [ ] **Port env var ignored** in `course-catalogue-service` and `course-content-service` — hardcoded instead of reading `os.Getenv("PORT")`.
+- [ ] **~150 lines of commented-out code** across `course-content-service` (attachment features never implemented).
+- [ ] **Alpha-stage dependency** — CloverDB is at `v2.0.0-alpha.3`. No stability guarantees for production data.
+- [ ] **No rate limiting** on Nginx gateway or any service.

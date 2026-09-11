@@ -53,7 +53,8 @@ func main() {
 	}
 
 	assignmentRepo := repository.NewGORMAssignmentRepository(db)
-	assignmentSvc := service.NewAssignmentService(assignmentRepo, fileStore)
+	submissionRepo := repository.NewGORMSubmissionRepository(db)
+	assignmentSvc := service.NewAssignmentService(assignmentRepo, submissionRepo, fileStore)
 	assignmentGrpcServer := server.NewAssignmentServer(assignmentSvc)
 
 	grpcServer := grpc.NewServer()

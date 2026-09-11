@@ -29,9 +29,9 @@ func TestUploadSubmissionEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to init file storage: %v", err)
 	}
-
-	repo := repository.NewGORMAssignmentRepository(db)
-	svc := service.NewAssignmentService(repo, storage)
+	assignmentRepo := repository.NewGORMAssignmentRepository(db)
+	submissionRepo := repository.NewGORMSubmissionRepository(db)
+	svc := service.NewAssignmentService(assignmentRepo, submissionRepo, storage)
 
 	grpcServer := grpc.NewServer()
 	assignmentpb.RegisterAssignmentServiceServer(grpcServer, server.NewAssignmentServer(svc))

@@ -10,7 +10,12 @@ service AssignmentService {
   rpc CreateAssignment(CreateAssignmentRequest) returns (CreateAssignmentResponse);
   rpc GetCourseAssignments(GetCourseAssignmentsRequest) returns (GetCourseAssignmentsResponse);
   rpc GetAssignment(GetAssignmentRequest) returns (GetAssignmentResponse);
-  rpc UploadSubmission(stream UploadSubmissionRequest) returns (UploadSubmissionResponse);
+
+  // Submissions (Student and Instructor)
+  rpc SubmitAssignment (SubmitAssignmentRequest) returns (SubmitAssignmentResponse);
+  // rpc GetSubmission (GetSubmissionRequest) returns (GetSubmissionResponse);
+  // rpc ListSubmissions (ListSubmissionsRequest) returns (ListSubmissionsResponse);
+  // rpc GradeSubmission (GradeSubmissionRequest) returns (GradeSubmissionResponse);
 }
 
 message Assignment {
@@ -55,16 +60,18 @@ message SubmissionMetadata {
   int64 size = 4;
 }
 
-message UploadSubmissionRequest {
+message SubmitAssignmentRequest {
   oneof payload {
     SubmissionMetadata metadata = 1;
     bytes chunk = 2;
   }
 }
 
-message UploadSubmissionResponse {
+message SubmitAssignmentResponse {
   string submission_id = 1;
   string file_url = 2;
   string file_name = 3;
   int64 file_size = 4;
 }
+
+

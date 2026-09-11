@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -18,9 +17,7 @@ import (
 )
 
 func main() {
-	fmt.Println("hej")
-
-	port := "50053"
+	port := os.Getenv("PORT")
 	if port == "" {
 		port = "50053"
 	}

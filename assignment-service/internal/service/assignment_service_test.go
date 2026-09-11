@@ -3,117 +3,35 @@ package service
 import (
 	"context"
 	"errors"
-	"io"
 	"regexp"
 	"strings"
 	"testing"
 
 	"osbourne.local/assignment-service/internal/domain"
+	"osbourne.local/assignment-service/internal/testutils"
 )
-
-type fakeRepository struct {
-	assignments map[string]*domain.Assignment
-	submissions []*domain.Submission
-	failCreate  bool
-	lastGrade   *domain.Grade
-}
-
-func newFakeRepository() *fakeRepository {
-	return &fakeRepository{
-		assignments: map[string]*domain.Assignment{},
-	}
-}
-
-func (f *fakeRepository) CreateAssignment(ctx context.Context, assignment *domain.Assignment) error {
-	f.assignments[assignment.ID] = assignment
-	return nil
-}
-
-func (f *fakeRepository) GetAssignment(ctx context.Context, assignmentID string) (*domain.Assignment, error) {
-	return f.assignments[assignmentID], nil
-}
-
-func (f *fakeRepository) GetAssignmentsByCourse(ctx context.Context, courseID string) ([]*domain.Assignment, error) {
-	var out []*domain.Assignment
-	for _, a := range f.assignments {
-		if a.CourseID == courseID {
-			out = append(out, a)
-		}
-	}
-	return out, nil
-}
-
-func (f *fakeRepository) CreateSubmission(ctx context.Context, submission *domain.Submission) error {
-	if f.failCreate {
-		return errors.New("db down")
-	}
-	f.submissions = append(f.submissions, submission)
-	return nil
-}
-
-func (f *fakeRepository) ListSubmissionsByAssignment(ctx context.Context, assignmentID string) ([]*domain.Submission, error) {
-	var out []*domain.Submission
-	for _, s := range f.submissions {
-		if s.AssignmentID == assignmentID {
-			out = append(out, s)
-		}
-	}
-	return out, nil
-}
-
-func (f *fakeRepository) CreateGrade(ctx context.Context, grade *domain.Grade) error {
-	f.lastGrade = grade
-	return nil
-}
-
-func (f *fakeRepository) GetGradeBySubmission(ctx context.Context, submissionID string) (*domain.Grade, error) {
-	if f.lastGrade != nil && f.lastGrade.SubmissionID == submissionID {
-		return f.lastGrade, nil
-	}
-	return nil, nil
-}
-
-type fakeStorage struct {
-	files   map[string][]byte
-	deleted []string
-}
-
-func newFakeStorage() *fakeStorage {
-	return &fakeStorage{files: map[string][]byte{}}
-}
-
-func (s *fakeStorage) Save(ctx context.Context, relativePath string, src io.Reader) (string, error) {
-	data, err := io.ReadAll(src)
-	if err != nil {
-		return "", err
-	}
-	s.files[relativePath] = data
-	return relativePath, nil
-}
-
-func (s *fakeStorage) Get(ctx context.Context, relativePath string) (io.ReadCloser, error) {
-	return nil, nil
-}
-
-func (s *fakeStorage) Delete(ctx context.Context, relativePath string) error {
-	delete(s.files, relativePath)
-	s.deleted = append(s.deleted, relativePath)
-	return nil
-}
 
 var uuidLike = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-func setupService(t *testing.T) (*AssignmentService, *fakeRepository, *fakeStorage) {
-	repo := newFakeRepository()
-	storage := newFakeStorage()
-	svc := NewAssignmentService(repo, storage)
-	return svc, repo, storage
+func setupService(t *testing.T) (
+	*AssignmentService,
+	*testutils.FakeAssignemntsRepository,
+	*testutils.FakeSubmissionRepository,
+	*testutils.FakeStorage,
+) {
+	t.Helper() // Marks this function as a test helper for cleaner stack traces
+
+	assignmentsRepo := testutils.NewFakeAssignmentsRepository()
+	submissionRepo := testutils.NewFakeSubmissionRepository()
+	storage := testutils.NewFakeStorage()
+
+	svc := NewAssignmentService(assignmentsRepo, submissionRepo, storage)
+
+	return svc, assignmentsRepo, submissionRepo, storage
 }
 
 func TestSubmitAssignment_SavesUnderUuidPathAndPersistsMetadata(t *testing.T) {
-	svc, repo, storage := setupService(t)
-
-	repo.assignments["assn_1"] = &domain.Assignment{ID: "assn_1", Title: "HW1"}
+	svc, assignmentRepo, submissionRepo, storage := setupService(t)
 
 	submission, err := svc.SubmitAssignment(context.Background(), SubmitAssignmentInput{
 		AssignmentID: "assn_1",
@@ -149,8 +67,8 @@ func TestSubmitAssignment_SavesUnderUuidPathAndPersistsMetadata(t *testing.T) {
 		t.Errorf("stored content mismatch: %q", got)
 	}
 
-	if len(repo.submissions) != 1 {
-		t.Fatalf("expected 1 submission in repo, got %d", len(repo.submissions))
+	if len(submissionRepo.submissions) != 1 {
+		t.Fatalf("expected 1 submission in repo, got %d", len(submissionRepo.submissions))
 	}
 }
 

@@ -25,7 +25,6 @@ func NewGORMDB(dbPath string) (*gorm.DB, error) {
 	for _, model := range []any{
 		&domain.Assignment{},
 		&domain.Submission{},
-		&domain.Grade{},
 	} {
 		if err := db.AutoMigrate(model); err != nil {
 			return nil, fmt.Errorf("Could not migrate database: %w", err)

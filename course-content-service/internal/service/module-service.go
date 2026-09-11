@@ -22,7 +22,7 @@ func NewModuleService(repo domain.ContentRepository) *ModuleService {
 }
 
 func (s *ModuleService) CreateModule(ctx context.Context, module *domain.Module) error {
-	if module.ID != "" {
+	if module.ID == "" {
 		module.ID = uuid.NewString()
 	}
 

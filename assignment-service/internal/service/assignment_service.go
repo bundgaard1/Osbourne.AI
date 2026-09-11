@@ -16,14 +16,16 @@ import (
 var ErrAssignmentNotFound = errors.New("assignment not found")
 
 type AssignmentService struct {
-	repo      domain.AssignmentRepository
-	fileStore domain.FileStorage
+	assignmentRepo domain.AssignmentRepository
+	submissionRepo domain.SubmissionRepository
+	fileStore      domain.FileStorage
 }
 
-func NewAssignmentService(repo domain.AssignmentRepository, fileStore domain.FileStorage) *AssignmentService {
+func NewAssignmentService(assignmentRepo domain.AssignmentRepository, submissionRepo domain.SubmissionRepository, fileStore domain.FileStorage) *AssignmentService {
 	return &AssignmentService{
-		repo:      repo,
-		fileStore: fileStore,
+		assignmentRepo: assignmentRepo,
+		submissionRepo: submissionRepo,
+		fileStore:      fileStore,
 	}
 }
 
@@ -34,13 +36,13 @@ func (s *AssignmentService) CreateAssignment(ctx context.Context, assignment *do
 	assignment.CreatedAt = time.Now()
 	assignment.UpdatedAt = time.Now()
 
-	return s.repo.CreateAssignment(ctx, assignment)
+	return s.assignmentRepo.Create(ctx, assignment)
 }
 
 func (s *AssignmentService) GetCourseAssignments(ctx context.Context, courseID string) ([]*domain.Assignment, error) {
 	// For simplicity, we assume that the repository has a method to list assignments by course ID.
 	// This method should be implemented in the repository layer.
-	assignments, err := s.repo.GetAssignmentsByCourse(ctx, courseID)
+	assignments, err := s.assignmentRepo.ListByCourse(ctx, courseID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch assignments for course %s: %w", courseID, err)
 	}
@@ -48,7 +50,7 @@ func (s *AssignmentService) GetCourseAssignments(ctx context.Context, courseID s
 }
 
 func (s *AssignmentService) GetAssignment(ctx context.Context, assignmentID string) (*domain.Assignment, error) {
-	return s.repo.GetAssignment(ctx, assignmentID)
+	return s.assignmentRepo.GetByID(ctx, assignmentID)
 }
 
 type SubmitAssignmentInput struct {
@@ -60,7 +62,7 @@ type SubmitAssignmentInput struct {
 
 func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssignmentInput, src io.Reader) (*domain.Submission, error) {
 	// 1. Validate that the assignment exists
-	assignment, err := s.repo.GetAssignment(ctx, in.AssignmentID)
+	assignment, err := s.assignmentRepo.GetByID(ctx, in.AssignmentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch assignment: %w", err)
 	}
@@ -96,7 +98,7 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 		FileSize:     in.Size,
 		SubmittedAt:  time.Now(),
 	}
-	if err := s.repo.CreateSubmission(ctx, submission); err != nil {
+	if err := s.submissionRepo.Create(ctx, submission); err != nil {
 		// ROLLBACK: if the database write fails, remove the saved file again
 		_ = s.fileStore.Delete(ctx, savedPath)
 		return nil, fmt.Errorf("failed to persist submission: %w", err)
@@ -106,35 +108,23 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 }
 
 func (s *AssignmentService) ListSubmissionsByAssignment(ctx context.Context, assignmentID string) ([]*domain.Submission, error) {
-	return s.repo.ListSubmissionsByAssignment(ctx, assignmentID)
+	return s.submissionRepo.ListByAssignment(ctx, assignmentID)
 }
 
-func (s *AssignmentService) GradeSubmission(ctx context.Context, submissionID string, graderID string, score int, feedback string) (*domain.Grade, error) {
-	grade := &domain.Grade{
-		ID:           uuid.NewString(),
-		SubmissionID: submissionID,
-		GraderID:     graderID,
-		Score:        score,
-		Feedback:     feedback,
-		GradedAt:     time.Now(),
-	}
-
-	if err := s.repo.CreateGrade(ctx, grade); err != nil {
-		return nil, fmt.Errorf("failed to store grade: %w", err)
-	}
-
-	return grade, nil
-}
-
-func (s *AssignmentService) GetGradeBySubmission(ctx context.Context, submissionID string) (*domain.Grade, error) {
-	grade, err := s.repo.GetGradeBySubmission(ctx, submissionID)
+func (s *AssignmentService) GradeSubmission(ctx context.Context, submissionID string, score int, feedback string) error {
+	submission, err := s.submissionRepo.GetByID(ctx, submissionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch grade: %w", err)
+		return fmt.Errorf("failed to fetch submission: %w", err)
 	}
-	if grade == nil {
-		return nil, nil // No grade found for this submission
+	if submission == nil {
+		return fmt.Errorf("cant find submission with ID: %s", submissionID)
 	}
-	return grade, nil
+
+	submission.Graded = true
+	submission.Score = score
+	submission.Feedback = feedback
+
+	return s.submissionRepo.Update(ctx, submission)
 }
 
 // sanitizedExtension returns the lowercase file extension from filename,
