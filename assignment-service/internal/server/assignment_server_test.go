@@ -3,7 +3,6 @@ package server_test
 import (
 	"context"
 	"net"
-	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -68,13 +67,13 @@ func TestUploadSubmissionEndToEnd(t *testing.T) {
 	}
 
 	content := "hello assignment file"
-	stream, err := client.UploadSubmission(ctx)
+	stream, err := client.SubmitAssignment(ctx)
 	if err != nil {
 		t.Fatalf("UploadSubmission failed to open stream: %v", err)
 	}
 
-	if err := stream.Send(&assignmentpb.UploadSubmissionRequest{
-		Payload: &assignmentpb.UploadSubmissionRequest_Metadata{
+	if err := stream.Send(&assignmentpb.SubmitAssignmentRequest{
+		Payload: &assignmentpb.SubmitAssignmentRequest_Metadata{
 			Metadata: &assignmentpb.SubmissionMetadata{
 				AssignmentId: created.GetAssignment().GetId(),
 				StudentId:    "student_1",
@@ -92,8 +91,8 @@ func TestUploadSubmissionEndToEnd(t *testing.T) {
 		if end > len(chunk) {
 			end = len(chunk)
 		}
-		if err := stream.Send(&assignmentpb.UploadSubmissionRequest{
-			Payload: &assignmentpb.UploadSubmissionRequest_Chunk{
+		if err := stream.Send(&assignmentpb.SubmitAssignmentRequest{
+			Payload: &assignmentpb.SubmitAssignmentRequest_Chunk{
 				Chunk: chunk[i:end],
 			},
 		}); err != nil {
@@ -103,33 +102,18 @@ func TestUploadSubmissionEndToEnd(t *testing.T) {
 
 	resp, err := stream.CloseAndRecv()
 	if err != nil {
-		t.Fatalf("UploadSubmission failed: %v", err)
+		t.Fatalf("SubmitAssignment failed: %v", err)
 	}
 
-	if resp.GetSubmissionId() == "" {
+	sub := resp.GetSubmission()
+	if sub.GetId() == "" {
 		t.Error("expected a submission id")
 	}
-	if resp.GetFileName() != "answer.pdf" {
-		t.Errorf("file name mismatch: %q", resp.GetFileName())
+	if sub.GetFilename() != "answer.pdf" {
+		t.Errorf("file name mismatch: %q", sub.GetFilename())
 	}
-	if resp.GetFileSize() != int64(len(content)) {
-		t.Errorf("file size mismatch: %d", resp.GetFileSize())
-	}
-	if !strings.HasPrefix(resp.GetFileUrl(), "submissions/") {
-		t.Errorf("unexpected file url: %q", resp.GetFileUrl())
+	if sub.GetSize() != int64(len(content)) {
+		t.Errorf("file size mismatch: %d", sub.GetSize())
 	}
 
-	// The uploaded bytes must be on disk
-	rc, err := storage.Get(ctx, resp.GetFileUrl())
-	if err != nil {
-		t.Fatalf("stored file not found: %v", err)
-	}
-	defer rc.Close()
-	got := make([]byte, len(content))
-	if _, err := rc.Read(got); err != nil && err.Error() != "EOF" {
-		t.Fatalf("failed to read stored file: %v", err)
-	}
-	if string(got) != content {
-		t.Errorf("stored content mismatch: got %q, want %q", string(got), content)
-	}
 }

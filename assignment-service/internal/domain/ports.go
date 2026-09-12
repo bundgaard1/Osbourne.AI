@@ -22,8 +22,10 @@ type SubmissionRepository interface {
 // FileStorage persists the raw bytes of submission files on the local
 // filesystem. Paths are relative to the storage root and are built from
 // server-side identifiers only.
+
 type FileStorage interface {
-	Save(ctx context.Context, relativePath string, src io.Reader) (string, error)
+	// Save writes the content to relativePath atomically and returns total bytes written.
+	Save(ctx context.Context, relativePath string, src io.Reader) (int64, error)
 	Get(ctx context.Context, relativePath string) (io.ReadCloser, error)
 	Delete(ctx context.Context, relativePath string) error
 }

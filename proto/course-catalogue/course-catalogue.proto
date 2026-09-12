@@ -10,7 +10,6 @@ service CourseCatalogueService {
   rpc ListEnrolledCourses (ListEnrolledCoursesRequest) returns (ListEnrolledCoursesResponse);
 }
 
-
 message GetCourseRequest {
   string course_id = 1;
 }

@@ -9,27 +9,26 @@ import (
 )
 
 type FakeAssignemntsRepository struct {
-	domain.AssignmentRepository
-	assignments map[string]*domain.Assignment
+	Assignments map[string]*domain.Assignment
 }
 
 func NewFakeAssignmentsRepository() *FakeAssignemntsRepository {
 	return &FakeAssignemntsRepository{
-		assignments: map[string]*domain.Assignment{}}
+		Assignments: map[string]*domain.Assignment{}}
 }
 
 func (f *FakeAssignemntsRepository) Create(ctx context.Context, assignment *domain.Assignment) error {
-	f.assignments[assignment.ID] = assignment
+	f.Assignments[assignment.ID] = assignment
 	return nil
 }
 
 func (f *FakeAssignemntsRepository) GetByID(ctx context.Context, assignmentID string) (*domain.Assignment, error) {
-	return f.assignments[assignmentID], nil
+	return f.Assignments[assignmentID], nil
 }
 
 func (f *FakeAssignemntsRepository) ListByCourse(ctx context.Context, courseID string) ([]*domain.Assignment, error) {
 	var out []*domain.Assignment
-	for _, a := range f.assignments {
+	for _, a := range f.Assignments {
 		if a.CourseID == courseID {
 			out = append(out, a)
 		}
@@ -38,34 +37,34 @@ func (f *FakeAssignemntsRepository) ListByCourse(ctx context.Context, courseID s
 }
 
 type FakeSubmissionRepository struct {
-	submissions map[string]*domain.Submission
-	failCreate  bool
+	Submissions map[string]*domain.Submission
+	FailCreate  bool
 }
 
 func NewFakeSubmissionRepository() *FakeSubmissionRepository {
-	return &FakeSubmissionRepository{submissions: map[string]*domain.Submission{}}
+	return &FakeSubmissionRepository{Submissions: map[string]*domain.Submission{}}
 }
 
 func (f *FakeSubmissionRepository) Create(ctx context.Context, submission *domain.Submission) error {
-	if f.failCreate {
+	if f.FailCreate {
 		return errors.New("submission already exists")
 	}
-	f.submissions[submission.ID] = submission
+	f.Submissions[submission.ID] = submission
 	return nil
 }
 
 func (f *FakeSubmissionRepository) GetByID(ctx context.Context, submissionID string) (*domain.Submission, error) {
-	return f.submissions[submissionID], nil
+	return f.Submissions[submissionID], nil
 }
 
 func (f *FakeSubmissionRepository) Update(ctx context.Context, submission *domain.Submission) error {
-	f.submissions[submission.ID] = submission
+	f.Submissions[submission.ID] = submission
 	return nil
 }
 
 func (f *FakeSubmissionRepository) ListByAssignment(ctx context.Context, assignmentID string) ([]*domain.Submission, error) {
 	var out []*domain.Submission
-	for _, s := range f.submissions {
+	for _, s := range f.Submissions {
 		if s.AssignmentID == assignmentID {
 			out = append(out, s)
 		}
@@ -74,7 +73,7 @@ func (f *FakeSubmissionRepository) ListByAssignment(ctx context.Context, assignm
 }
 
 func (f *FakeSubmissionRepository) GetByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) (*domain.Submission, error) {
-	for _, s := range f.submissions {
+	for _, s := range f.Submissions {
 		if s.StudentID == studentID && s.AssignmentID == assignmentID {
 			return s, nil
 		}
@@ -83,21 +82,21 @@ func (f *FakeSubmissionRepository) GetByStudentAndAssignment(ctx context.Context
 }
 
 type FakeStorage struct {
-	files   map[string][]byte
-	deleted []string
+	Files   map[string][]byte
+	Deleted []string
 }
 
-func NewFakeStorage() *FakeStorage {
-	return &FakeStorage{files: map[string][]byte{}}
+func NewFakeFileStorage() *FakeStorage {
+	return &FakeStorage{Files: map[string][]byte{}}
 }
 
-func (s *FakeStorage) Save(ctx context.Context, relativePath string, src io.Reader) (string, error) {
+func (s *FakeStorage) Save(ctx context.Context, relativePath string, src io.Reader) (int64, error) {
 	data, err := io.ReadAll(src)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
-	s.files[relativePath] = data
-	return relativePath, nil
+	s.Files[relativePath] = data
+	return int64(len(data)), nil
 }
 
 func (s *FakeStorage) Get(ctx context.Context, relativePath string) (io.ReadCloser, error) {
@@ -105,7 +104,7 @@ func (s *FakeStorage) Get(ctx context.Context, relativePath string) (io.ReadClos
 }
 
 func (s *FakeStorage) Delete(ctx context.Context, relativePath string) error {
-	delete(s.files, relativePath)
-	s.deleted = append(s.deleted, relativePath)
+	delete(s.Files, relativePath)
+	s.Deleted = append(s.Deleted, relativePath)
 	return nil
 }

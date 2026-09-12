@@ -83,7 +83,7 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 	)
 
 	// 3. Save the physical file
-	savedPath, err := s.fileStore.Save(ctx, relativePath, src)
+	sizeOut, err := s.fileStore.Save(ctx, relativePath, src)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save file: %w", err)
 	}
@@ -93,18 +93,22 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 		ID:           submissionID,
 		AssignmentID: in.AssignmentID,
 		StudentID:    in.StudentID,
-		FileURL:      savedPath,
+		FileURL:      relativePath,
 		FileName:     in.FileName,
-		FileSize:     in.Size,
+		FileSize:     sizeOut,
 		SubmittedAt:  time.Now(),
 	}
 	if err := s.submissionRepo.Create(ctx, submission); err != nil {
 		// ROLLBACK: if the database write fails, remove the saved file again
-		_ = s.fileStore.Delete(ctx, savedPath)
+		_ = s.fileStore.Delete(ctx, relativePath)
 		return nil, fmt.Errorf("failed to persist submission: %w", err)
 	}
 
 	return submission, nil
+}
+
+func (s *AssignmentService) GetSubmission(ctx context.Context, submissionID string) (*domain.Submission, error) {
+	return s.submissionRepo.GetByID(ctx, submissionID)
 }
 
 func (s *AssignmentService) ListSubmissionsByAssignment(ctx context.Context, assignmentID string) ([]*domain.Submission, error) {
@@ -125,6 +129,10 @@ func (s *AssignmentService) GradeSubmission(ctx context.Context, submissionID st
 	submission.Feedback = feedback
 
 	return s.submissionRepo.Update(ctx, submission)
+}
+
+func (s *AssignmentService) FileStorage() domain.FileStorage {
+	return s.fileStore
 }
 
 // sanitizedExtension returns the lowercase file extension from filename,

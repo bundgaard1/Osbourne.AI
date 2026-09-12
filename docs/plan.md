@@ -114,7 +114,7 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 * [x] **Grading Repository:** Implement `CreateSubmission` and `UpdateGrade`.
 * [x] **Service Layer & Event Triggering:**
-* [ ] In `GradeSubmission()` the grade is saved in the SQL database.
+* [x] In `GradeSubmission()` the grade is saved in the SQL database.
 * [ ] As soon as the DB update succeeds, a `grade.published` event is published on RabbitMQ with `{student_id, course_id, grade}`.
 
 #### **3. gRPC Server Setup**

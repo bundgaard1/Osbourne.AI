@@ -7,16 +7,22 @@ import "google/protobuf/timestamp.proto";
 option go_package = "osbourne.local/assignment-service/gen/assignment;assignment";
 
 service AssignmentService {
+  // Assignments
   rpc CreateAssignment(CreateAssignmentRequest) returns (CreateAssignmentResponse);
   rpc GetCourseAssignments(GetCourseAssignmentsRequest) returns (GetCourseAssignmentsResponse);
   rpc GetAssignment(GetAssignmentRequest) returns (GetAssignmentResponse);
 
   // Submissions (Student and Instructor)
-  rpc SubmitAssignment (SubmitAssignmentRequest) returns (SubmitAssignmentResponse);
-  // rpc GetSubmission (GetSubmissionRequest) returns (GetSubmissionResponse);
-  // rpc ListSubmissions (ListSubmissionsRequest) returns (ListSubmissionsResponse);
-  // rpc GradeSubmission (GradeSubmissionRequest) returns (GradeSubmissionResponse);
+  rpc SubmitAssignment(stream SubmitAssignmentRequest) returns (SubmitAssignmentResponse);
+  rpc DownloadSubmission(DownloadSubmissionRequest) returns (stream DownloadSubmissionResponse);
+  rpc GetSubmission(GetSubmissionRequest) returns (GetSubmissionResponse);
+  rpc ListSubmissions(ListSubmissionsRequest) returns (ListSubmissionsResponse);
+  rpc GradeSubmission(GradeSubmissionRequest) returns (GradeSubmissionResponse);
 }
+
+// ---------------------------------------------------------------------------
+// Assignment Entities & RPC Payloads
+// ---------------------------------------------------------------------------
 
 message Assignment {
   string id = 1;
@@ -24,6 +30,7 @@ message Assignment {
   string title = 3;
   string description = 4;
   google.protobuf.Timestamp due_date = 5;
+
 }
 
 message CreateAssignmentRequest {
@@ -53,6 +60,22 @@ message GetAssignmentResponse {
   Assignment assignment = 1;
 }
 
+// ---------------------------------------------------------------------------
+// Submission Entities & RPC Payloads
+// ---------------------------------------------------------------------------
+
+message Submission {
+  string id = 1;
+  string assignment_id = 2;
+  string student_id = 3;
+  string filename = 4;
+  int64 size = 5;
+  google.protobuf.Timestamp submitted_at = 6;
+  bool graded = 7;
+  optional int32 score = 8;
+  optional string feedback = 9;
+}
+
 message SubmissionMetadata {
   string assignment_id = 1;
   string student_id = 2;
@@ -68,10 +91,39 @@ message SubmitAssignmentRequest {
 }
 
 message SubmitAssignmentResponse {
-  string submission_id = 1;
-  string file_url = 2;
-  string file_name = 3;
-  int64 file_size = 4;
+  Submission submission = 1;
 }
 
+message DownloadSubmissionRequest {
+  string submission_id = 1;
+}
 
+message DownloadSubmissionResponse {
+  bytes chunk = 1;
+}
+
+message GetSubmissionRequest {
+  string submission_id = 1;
+}
+
+message GetSubmissionResponse {
+  Submission submission = 1;
+}
+
+message ListSubmissionsRequest {
+  string assignment_id = 1;
+}
+
+message ListSubmissionsResponse {
+  repeated Submission submissions = 1;
+}
+
+message GradeSubmissionRequest {
+  string submission_id = 1;
+  int32 score = 2;
+  string feedback = 3;
+}
+
+message GradeSubmissionResponse {
+  bool success = 1;
+}

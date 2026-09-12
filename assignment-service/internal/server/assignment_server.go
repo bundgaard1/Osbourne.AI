@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -73,7 +74,7 @@ func (s *AssignmentServer) GetAssignment(ctx context.Context, req *assignmentpb.
 	}, nil
 }
 
-func (s *AssignmentServer) UploadSubmission(stream assignmentpb.AssignmentService_UploadSubmissionServer) error {
+func (s *AssignmentServer) SubmitAssignment(stream assignmentpb.AssignmentService_SubmitAssignmentServer) error {
 	first, err := stream.Recv()
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "expected metadata as first message: %v", err)
@@ -117,12 +118,84 @@ func (s *AssignmentServer) UploadSubmission(stream assignmentpb.AssignmentServic
 		return err
 	}
 
-	return stream.SendAndClose(&assignmentpb.UploadSubmissionResponse{
-		SubmissionId: submission.ID,
-		FileUrl:      submission.FileURL,
-		FileName:     submission.FileName,
-		FileSize:     submission.FileSize,
+	return stream.SendAndClose(&assignmentpb.SubmitAssignmentResponse{
+		Submission: toProtoSubmission(submission),
 	})
+}
+
+func (s *AssignmentServer) GetSubmission(ctx context.Context, req *assignmentpb.GetSubmissionRequest) (*assignmentpb.GetSubmissionResponse, error) {
+	submission, err := s.svc.GetSubmission(ctx, req.GetSubmissionId())
+	if err != nil {
+		return nil, err
+	}
+	if submission == nil {
+		return nil, status.Error(codes.NotFound, "submission not found")
+	}
+
+	return &assignmentpb.GetSubmissionResponse{
+		Submission: toProtoSubmission(submission),
+	}, nil
+}
+
+func (s *AssignmentServer) DownloadSubmission(req *assignmentpb.DownloadSubmissionRequest, stream assignmentpb.AssignmentService_DownloadSubmissionServer) error {
+	submission, err := s.svc.GetSubmission(stream.Context(), req.GetSubmissionId())
+	if err != nil {
+		return err
+	}
+	if submission == nil {
+		return status.Error(codes.NotFound, "submission not found")
+	}
+
+	rc, err := s.svc.FileStorage().Get(stream.Context(), submission.FileURL)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to open file: %v", err)
+	}
+	defer rc.Close()
+
+	buf := make([]byte, 1024)
+	for {
+		n, rerr := rc.Read(buf)
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			return status.Errorf(codes.Internal, "failed to read file: %v", rerr)
+		}
+
+		if serr := stream.Send(&assignmentpb.DownloadSubmissionResponse{
+			Chunk: buf[:n],
+		}); serr != nil {
+			return status.Errorf(codes.Internal, "failed to send chunk: %v", serr)
+		}
+	}
+
+	return nil
+}
+
+func (s *AssignmentServer) ListSubmissions(ctx context.Context, req *assignmentpb.ListSubmissionsRequest) (*assignmentpb.ListSubmissionsResponse, error) {
+	submissions, err := s.svc.ListSubmissionsByAssignment(ctx, req.GetAssignmentId())
+	if err != nil {
+		return nil, err
+	}
+
+	protoSubmissions := make([]*assignmentpb.Submission, len(submissions))
+	for i, submission := range submissions {
+		protoSubmissions[i] = toProtoSubmission(submission)
+	}
+
+	return &assignmentpb.ListSubmissionsResponse{
+		Submissions: protoSubmissions,
+	}, nil
+}
+
+func (s *AssignmentServer) GradeSubmission(ctx context.Context, req *assignmentpb.GradeSubmissionRequest) (*assignmentpb.GradeSubmissionResponse, error) {
+	if err := s.svc.GradeSubmission(ctx, req.GetSubmissionId(), int(req.GetScore()), req.GetFeedback()); err != nil {
+		return nil, err
+	}
+
+	return &assignmentpb.GradeSubmissionResponse{
+		Success: true,
+	}, nil
 }
 
 func toProtoAssignment(assignment *domain.Assignment) *assignmentpb.Assignment {
@@ -132,5 +205,29 @@ func toProtoAssignment(assignment *domain.Assignment) *assignmentpb.Assignment {
 		Title:       assignment.Title,
 		Description: assignment.Description,
 		DueDate:     timestamppb.New(assignment.DueDate),
+	}
+}
+
+func toProtoSubmission(submission *domain.Submission) *assignmentpb.Submission {
+	var scorePtr *int32
+	if submission.Graded { // or if your domain model has submission.Score != nil
+		scorePtr = proto.Int32(int32(submission.Score))
+	}
+
+	var feedbackPtr *string
+	if submission.Feedback != "" {
+		feedbackPtr = proto.String(submission.Feedback)
+	}
+
+	return &assignmentpb.Submission{
+		Id:           submission.ID,
+		AssignmentId: submission.AssignmentID,
+		StudentId:    submission.StudentID,
+		Filename:     submission.FileName,
+		Size:         submission.FileSize,
+		SubmittedAt:  timestamppb.New(submission.SubmittedAt),
+		Graded:       submission.Graded,
+		Score:        scorePtr,
+		Feedback:     feedbackPtr,
 	}
 }
