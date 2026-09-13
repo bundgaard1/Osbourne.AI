@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -45,27 +46,24 @@ func TestSubmitAssignment_SavesUnderUuidPathAndPersistsMetadata(t *testing.T) {
 		t.Fatalf("SubmitAssignment failed: %v", err)
 	}
 
-	// Path must be built only from server-side IDs + a UUID name
-	parts := strings.Split(submission.FileURL, "/")
-	if len(parts) != 4 || parts[0] != "submissions" || parts[1] != "assn_1" {
-		t.Fatalf("unexpected file url: %q", submission.FileURL)
+	// File must be stored under a single flat UUID name, with no directory
+	// components and no leaked original filename.
+	if strings.Contains(filepath.Base(submission.FileID), "/") {
+		t.Fatalf("file id should be a flat filename, got %q", submission.FileID)
 	}
-	if parts[2] != submission.ID {
-		t.Errorf("directory should be the submission id, got %q", parts[2])
-	}
-	name := strings.TrimSuffix(parts[3], ".pdf")
+	name := strings.TrimSuffix(submission.FileID, ".pdf")
 	if !uuidLike.MatchString(name) {
-		t.Errorf("stored filename should be a uuid, got %q", parts[3])
+		t.Errorf("stored filename should be a uuid, got %q", submission.FileID)
 	}
-	if strings.Contains(parts[3], "report") {
-		t.Errorf("original filename leaked into storage path: %q", submission.FileURL)
+	if strings.Contains(submission.FileID, "report") {
+		t.Errorf("original filename leaked into storage path: %q", submission.FileID)
 	}
 
 	if submission.FileName != "report.pdf" || submission.FileSize != int64(len("filecontent")) {
 		t.Errorf("metadata mismatch: %+v", submission)
 	}
 
-	if got := string(storage.Files[submission.FileURL]); got != "filecontent" {
+	if got := string(storage.Files[submission.FileID]); got != "filecontent" {
 		t.Errorf("stored content mismatch: %q", got)
 	}
 

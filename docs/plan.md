@@ -128,7 +128,7 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 
 * [ ] Students can upload files for assignments. and it persists the file in the `assignment-service`'s `UPLOAD_DIR` and stores the file path in the `submissions` table.
-* [ ] Download of submitted files.
+* [x] Download of submitted files.
 
 
 ---
@@ -247,7 +247,7 @@ hey -n 200 -c 20 http://localhost/api/v1/courses
 ### Critical Bugs
 
 - [x] **Inverted ID generation in CreateModule** — `course-content-service/internal/service/module-service.go:25` generates a UUID only when `module.ID != ""`, which is the opposite of what you want. Should be `== ""`.
-- [ ] **DeleteModule does nothing** — `course-content-service/internal/service/module-service.go:67-77` validates the module exists but never calls `s.repo.DeleteModule()`. Deletions silently no-op.
+- [x] **DeleteModule does nothing** — `course-content-service/internal/service/module-service.go:67-77` validates the module exists but never calls `s.repo.DeleteModule()`. Deletions silently no-op.
 - [ ] **No authentication** — `frontend/internal/handler/handler.go:59-61` reads user identity from `?id=` query param with a hardcoded fallback `"12345"`. Anyone can impersonate any user. Auth-service is a skeleton with no implementation.
 - [ ] **All gRPC traffic is unencrypted** — All 5 frontend gRPC clients use `insecure.NewCredentials()`. No TLS, no mTLS.
 

@@ -16,9 +16,9 @@ type Submission struct {
 	ID           string    `gorm:"primaryKey" json:"id"`
 	AssignmentID string    `gorm:"index;not null" json:"assignment_id"`
 	StudentID    string    `gorm:"index;not null" json:"student_id"`
-	FileURL      string    `gorm:"not null" json:"file_url"` // Relative path inside the file store
-	FileName     string    `json:"file_name"`                // Original filename, kept for metadata
-	FileSize     int64     `json:"file_size"`                // Size in bytes
+	FileID       string    `gorm:"not null" json:"file_id"` // Flat UUID file identifier inside the file store
+	FileName     string    `json:"file_name"`               // Original filename, kept for metadata
+	FileSize     int64     `json:"file_size"`               // Size in bytes
 	SubmittedAt  time.Time `json:"submitted_at"`
 	Graded       bool      `gorm:"default:false" json:"graded"`
 	Score        int       `json:"score,omitempty"` // Nullable, only set if graded

@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	"osbourne.local/assignment-service/internal/domain"
+	"osbourne.local/assignment-service/internal/seed"
 )
 
 func NewGORMDB(dbPath string) (*gorm.DB, error) {
@@ -54,9 +55,11 @@ func SeedGORMData(db *gorm.DB) error {
 		return fmt.Errorf("Could not seed assignments: %w", err)
 	}
 
-	submissions := []domain.Submission{
-		{ID: "1", AssignmentID: "1", StudentID: "student1", FileName: "submission1.pdf", FileSize: 1024, SubmittedAt: time.Now()},
-		{ID: "2", AssignmentID: "2", StudentID: "student2", FileName: "submission2.pdf", FileSize: 2048, SubmittedAt: time.Now()},
+	// Submissions come from the seed package so their flat UUID file paths
+	// always match the physical files written by seed.SeedFiles.
+	submissions := seed.Submissions()
+	for i := range submissions {
+		submissions[i].SubmittedAt = time.Now()
 	}
 
 	if err := db.Create(&submissions).Error; err != nil {

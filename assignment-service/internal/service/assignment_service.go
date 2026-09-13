@@ -70,20 +70,15 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 		return nil, ErrAssignmentNotFound
 	}
 
-	// 2. Build the storage path from server-side identifiers only, so the
-	//    relative path is safe against path traversal.
+	// 2. Build a flat storage path from server-side identifiers only: the
+	//    file is stored under a fresh UUID, so the path is safe against
+	//    path traversal and never leaks the original filename.
 	submissionID := uuid.NewString()
 	fileID := uuid.NewString()
-	relativePath := fmt.Sprintf(
-		"submissions/%s/%s/%s%s",
-		in.AssignmentID,
-		submissionID,
-		fileID,
-		sanitizedExtension(in.FileName),
-	)
+	filePath := fileID + sanitizedExtension(in.FileName)
 
 	// 3. Save the physical file
-	sizeOut, err := s.fileStore.Save(ctx, relativePath, src)
+	sizeOut, err := s.fileStore.Save(ctx, filePath, src)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save file: %w", err)
 	}
@@ -93,14 +88,14 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 		ID:           submissionID,
 		AssignmentID: in.AssignmentID,
 		StudentID:    in.StudentID,
-		FileURL:      relativePath,
+		FileID:      filePath,
 		FileName:     in.FileName,
 		FileSize:     sizeOut,
 		SubmittedAt:  time.Now(),
 	}
 	if err := s.submissionRepo.Create(ctx, submission); err != nil {
 		// ROLLBACK: if the database write fails, remove the saved file again
-		_ = s.fileStore.Delete(ctx, relativePath)
+		_ = s.fileStore.Delete(ctx, filePath)
 		return nil, fmt.Errorf("failed to persist submission: %w", err)
 	}
 

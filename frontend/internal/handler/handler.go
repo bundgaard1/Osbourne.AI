@@ -48,6 +48,7 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 		r.Route("/api", func(r chi.Router) {
 			r.Post("/courses/enroll", h.HandleEnrollCourse)
 			r.Post("/assignments/{assignmentID}/submit", h.HandleSubmitAssignment)
+			r.Get("/submissions/{submissionID}/download", h.HandleDownloadSubmission)
 			r.Post("/submissions/{submissionID}/grade", h.HandleGradeSubmission)
 		})
 	})

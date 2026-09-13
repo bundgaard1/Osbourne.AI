@@ -16,6 +16,7 @@ import (
 	"osbourne.local/assignment-service/gen/assignment"
 	"osbourne.local/assignment-service/internal/database"
 	"osbourne.local/assignment-service/internal/repository"
+	"osbourne.local/assignment-service/internal/seed"
 	"osbourne.local/assignment-service/internal/server"
 	"osbourne.local/assignment-service/internal/service"
 )
@@ -73,20 +74,24 @@ func main() {
 	sqlDB.SetMaxOpenConns(1)
 	defer sqlDB.Close()
 
-	// 2. Controlled Seeding (Dev/Local only)
+	// 2. Storage Setup
+	fileStore, err := repository.NewLocalFileStorage(cfg.UploadDir)
+	if err != nil {
+		slog.Error("failed to initialize file storage", "err", err, "dir", cfg.UploadDir)
+		os.Exit(1)
+	}
+
+	// 3. Controlled Seeding (Dev/Local only)
 	if cfg.SeedData {
 		if err := database.SeedGORMData(db); err != nil {
 			slog.Error("failed to seed database", "err", err)
 			os.Exit(1)
 		}
-		slog.Info("database successfully seeded")
-	}
-
-	// 3. Storage Setup
-	fileStore, err := repository.NewLocalFileStorage(cfg.UploadDir)
-	if err != nil {
-		slog.Error("failed to initialize file storage", "err", err, "dir", cfg.UploadDir)
-		os.Exit(1)
+		if err := seed.SeedFiles(context.Background(), fileStore); err != nil {
+			slog.Error("failed to seed files", "err", err)
+			os.Exit(1)
+		}
+		slog.Info("database and files successfully seeded")
 	}
 
 	// 4. Dependency Injection

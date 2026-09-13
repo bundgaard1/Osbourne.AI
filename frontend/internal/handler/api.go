@@ -2,8 +2,13 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"log"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -63,6 +68,66 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 	// TODO: Implement assignment submission logic
 }
 
+func (h *Handler) HandleDownloadSubmission(w http.ResponseWriter, r *http.Request) {
+	submissionID := chi.URLParam(r, "submissionID")
+	if submissionID == "" {
+		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Missing submissionID"})
+		return
+	}
+
+	userID := UserFromContext(r.Context()).ID
+	_ = userID
+
+	resp, err := h.clients.Assignment.Client.DownloadSubmission(r.Context(),
+		&assignment.DownloadSubmissionRequest{
+			SubmissionId: submissionID,
+		})
+
+	if err != nil {
+		log.Printf("gRPC call DownloadSubmission failed: %v", err)
+		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not download submission"})
+		return
+	}
+
+	msg, err := resp.Recv()
+
+	fmt.Println(msg, err)
+
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			writeJSON(w, http.StatusNotFound, enrollResponse{Success: false, Message: "Submission has no file content"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, enrollResponse{Success: false, Message: "Could not download submission"})
+		return
+	}
+
+	if metadata := msg.GetMetadata(); metadata != nil {
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", metadata.GetFilename()))
+		w.Header().Set("Content-Type", mimeTypeFor(metadata.GetFilename()))
+		if metadata.GetSize() > 0 {
+			w.Header().Set("Content-Length", strconv.FormatInt(metadata.GetSize(), 10))
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+
+	for {
+		chunk, err := resp.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			log.Printf("Error receiving chunk: %v", err)
+			return
+		}
+		if _, writeErr := w.Write(chunk.GetChunk()); writeErr != nil {
+			log.Printf("Error writing chunk to response: %v", writeErr)
+			return
+		}
+	}
+
+}
+
 func (h *Handler) HandleGradeSubmission(w http.ResponseWriter, r *http.Request) {
 	submissionID := chi.URLParam(r, "submissionID")
 	if submissionID == "" {
@@ -84,11 +149,12 @@ func (h *Handler) HandleGradeSubmission(w http.ResponseWriter, r *http.Request) 
 
 	feedback := r.FormValue("feedback")
 
-	_, err = h.clients.Assignment.Client.GradeSubmission(r.Context(), &assignment.GradeSubmissionRequest{
-		SubmissionId: submissionID,
-		Score:        int32(grade),
-		Feedback:     feedback,
-	})
+	_, err = h.clients.Assignment.Client.GradeSubmission(r.Context(),
+		&assignment.GradeSubmissionRequest{
+			SubmissionId: submissionID,
+			Score:        int32(grade),
+			Feedback:     feedback,
+		})
 
 	if err != nil {
 		log.Printf("gRPC call GradeSubmission failed: %v", err)
@@ -105,4 +171,13 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		log.Printf("failed to encode JSON response: %v", err)
 	}
+}
+
+// mimeTypeFor resolves a Content-Type from a filename's extension, falling
+// back to octet-stream for unknown or extension-less names.
+func mimeTypeFor(filename string) string {
+	if ct := mime.TypeByExtension(filepath.Ext(filename)); ct != "" {
+		return ct
+	}
+	return "application/octet-stream"
 }

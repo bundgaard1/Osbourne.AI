@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/gogo/protobuf/proto"
@@ -11,6 +13,7 @@ import (
 
 	assignmentpb "osbourne.local/assignment-service/gen/assignment"
 	"osbourne.local/assignment-service/internal/domain"
+	"osbourne.local/assignment-service/internal/repository"
 	"osbourne.local/assignment-service/internal/service"
 )
 
@@ -146,12 +149,31 @@ func (s *AssignmentServer) DownloadSubmission(req *assignmentpb.DownloadSubmissi
 		return status.Error(codes.NotFound, "submission not found")
 	}
 
-	rc, err := s.svc.FileStorage().Get(stream.Context(), submission.FileURL)
+	rc, err := s.svc.FileStorage().Get(stream.Context(), submission.FileID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to open file: %v", err)
+		code := codes.Internal
+		if errors.Is(err, repository.ErrNotFound) {
+			code = codes.NotFound
+		}
+		return status.Errorf(code, "failed to open file: %v", err)
 	}
 	defer rc.Close()
 
+	// Send metadata first
+	if serr := stream.Send(&assignmentpb.DownloadSubmissionResponse{
+		Payload: &assignmentpb.DownloadSubmissionResponse_Metadata{
+			Metadata: &assignmentpb.DownloadSubmissionMetadata{
+				Filename: submission.FileName,
+				Size:     submission.FileSize,
+			},
+		},
+	}); serr != nil {
+		fmt.Printf("Failed to send metadata: %v\n", serr)
+		return status.Errorf(codes.Internal, "failed to send metadata: %v", serr)
+	}
+	fmt.Printf("Sent metadata: filename=%s, size=%d\n", submission.FileName, submission.FileSize)
+
+	// Send file content in chunks
 	buf := make([]byte, 1024)
 	for {
 		n, rerr := rc.Read(buf)
@@ -163,7 +185,9 @@ func (s *AssignmentServer) DownloadSubmission(req *assignmentpb.DownloadSubmissi
 		}
 
 		if serr := stream.Send(&assignmentpb.DownloadSubmissionResponse{
-			Chunk: buf[:n],
+			Payload: &assignmentpb.DownloadSubmissionResponse_Chunk{
+				Chunk: buf[:n],
+			},
 		}); serr != nil {
 			return status.Errorf(codes.Internal, "failed to send chunk: %v", serr)
 		}

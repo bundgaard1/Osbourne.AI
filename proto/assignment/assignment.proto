@@ -98,8 +98,16 @@ message DownloadSubmissionRequest {
   string submission_id = 1;
 }
 
+message DownloadSubmissionMetadata {
+  string filename = 1;
+  int64 size = 2;
+}
+
 message DownloadSubmissionResponse {
-  bytes chunk = 1;
+  oneof payload {
+    DownloadSubmissionMetadata metadata = 1;
+    bytes chunk = 2;
+  }
 }
 
 message GetSubmissionRequest {
