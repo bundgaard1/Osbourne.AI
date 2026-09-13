@@ -1,0 +1,73 @@
+package view
+
+import "osbourne.local/frontend/internal/domain"
+
+var submitGradeOnce = templ.NewOnceHandle()
+
+templ SubmissionCard(submission domain.Submission) {
+    @submitGradeOnce.Once() {
+        <script>
+            document.addEventListener('submit', function (event) {
+                var form = event.target.closest('.grade-form');
+                if (!form) return;
+
+                event.preventDefault();
+                var submissionId = form.getAttribute('data-submission-id');
+                if (!submissionId) return;
+
+                var button = form.querySelector('button');
+                if (button) button.disabled = true;
+
+                var formData = new FormData(form);
+
+                fetch('/api/submissions/' + submissionId + '/grade', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(function (resp) {
+                        return resp.json().catch(function () { return {}; }).then(function (data) {
+                            return { ok: resp.ok, data: data };
+                        });
+                    })
+                    .then(function (result) {
+                        if (result.ok && result.data.success) {
+                            showToast(result.data.message || 'Graded successfully', 'success');
+                        } else {	
+                            if (button) button.disabled = false;
+                            showToast(result.data.message || 'Could not complete grading', 'error');
+                        }
+                    })
+                    .catch(function () {
+                        if (button) button.disabled = false;
+                        showToast('Could not complete grading', 'error');
+                    });
+            });
+        </script>
+    }
+
+
+    <div class="submission-card" id={ "submission-" + submission.ID }>
+        <p><strong>Submitted At:</strong> { submission.SubmittedAt.Format("2006-01-02 15:04:05") }</p>
+        <p><strong>File Name:</strong> { submission.Filename }</p>
+        <p><strong>File Size:</strong> { submission.FileSize } bytes</p>
+        <p><a href=".">Download</a></p>
+        
+        if submission.Graded {
+            <p><strong>Grade:</strong> { submission.Score }</p>
+            <p>{ submission.Feedback }</p>
+        } else {
+            <p>Not graded yet</p>
+        }
+        
+        if submission.Graded == false {
+            <form class="grade-form" data-submission-id={ submission.ID }>
+                <label for="grade">Grade:</label>
+                <input type="number" name="grade" min="0" required>
+                <label for="feedback">Feedback:</label>
+                <input type="text" name="feedback">
+                <button type="submit">Submit Grade</button>
+            </form>
+        }
+        
+    </div>
+}

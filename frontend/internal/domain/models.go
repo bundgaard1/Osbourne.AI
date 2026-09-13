@@ -32,6 +32,18 @@ type Assignment struct {
 	DueDate     time.Time
 }
 
+type Submission struct {
+	ID           string
+	AssignmentID string
+	StudentID    string
+	Filename     string
+	FileSize     int64
+	SubmittedAt  time.Time
+	Graded       bool
+	Score        int
+	Feedback     string
+}
+
 type Course struct {
 	ID          string
 	Code        string

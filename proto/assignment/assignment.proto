@@ -12,7 +12,7 @@ service AssignmentService {
   rpc GetCourseAssignments(GetCourseAssignmentsRequest) returns (GetCourseAssignmentsResponse);
   rpc GetAssignment(GetAssignmentRequest) returns (GetAssignmentResponse);
 
-  // Submissions (Student and Instructor)
+  // Submissions
   rpc SubmitAssignment(stream SubmitAssignmentRequest) returns (SubmitAssignmentResponse);
   rpc DownloadSubmission(DownloadSubmissionRequest) returns (stream DownloadSubmissionResponse);
   rpc GetSubmission(GetSubmissionRequest) returns (GetSubmissionResponse);

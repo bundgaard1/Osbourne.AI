@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
+	"github.com/go-chi/chi/v5"
+	"osbourne.local/frontend/gen/assignment"
 	coursecatalogue "osbourne.local/frontend/gen/course-catalogue"
 )
 
@@ -45,6 +48,55 @@ func (h *Handler) HandleEnrollCourse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, enrollResponse{Success: true, Message: title})
+}
+
+func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request) {
+	assignmentID := chi.URLParam(r, "assignmentID")
+	if assignmentID == "" {
+		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Missing assignmentID"})
+		return
+	}
+
+	userID := UserFromContext(r.Context()).ID
+	_ = userID
+
+	// TODO: Implement assignment submission logic
+}
+
+func (h *Handler) HandleGradeSubmission(w http.ResponseWriter, r *http.Request) {
+	submissionID := chi.URLParam(r, "submissionID")
+	if submissionID == "" {
+		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Missing submissionID"})
+		return
+	}
+
+	gradeStr := r.FormValue("grade")
+	if gradeStr == "" {
+		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Missing grade"})
+		return
+	}
+
+	grade, err := strconv.Atoi(gradeStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Grade must be a number"})
+		return
+	}
+
+	feedback := r.FormValue("feedback")
+
+	_, err = h.clients.Assignment.Client.GradeSubmission(r.Context(), &assignment.GradeSubmissionRequest{
+		SubmissionId: submissionID,
+		Score:        int32(grade),
+		Feedback:     feedback,
+	})
+
+	if err != nil {
+		log.Printf("gRPC call GradeSubmission failed: %v", err)
+		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not grade submission"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, enrollResponse{Success: true, Message: "Submission graded successfully"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

@@ -54,5 +54,14 @@ func SeedGORMData(db *gorm.DB) error {
 		return fmt.Errorf("Could not seed assignments: %w", err)
 	}
 
+	submissions := []domain.Submission{
+		{ID: "1", AssignmentID: "1", StudentID: "student1", FileName: "submission1.pdf", FileSize: 1024, SubmittedAt: time.Now()},
+		{ID: "2", AssignmentID: "2", StudentID: "student2", FileName: "submission2.pdf", FileSize: 2048, SubmittedAt: time.Now()},
+	}
+
+	if err := db.Create(&submissions).Error; err != nil {
+		return fmt.Errorf("Could not seed submissions: %w", err)
+	}
+
 	return nil
 }

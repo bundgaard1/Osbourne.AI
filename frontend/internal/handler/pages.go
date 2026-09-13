@@ -126,10 +126,9 @@ func (h *Handler) HandleCoursePage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 	user := UserFromContext(r.Context())
-	// courseID := chi.URLParam(r, "courseID")
 	assignmentID := chi.URLParam(r, "assignmentID")
 
-	res, err := h.clients.Assignment.Client.GetAssignment(
+	assignmentsRes, err := h.clients.Assignment.Client.GetAssignment(
 		r.Context(),
 		&assignment.GetAssignmentRequest{
 			AssignmentId: assignmentID,
@@ -140,8 +139,20 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	submissionsRes, err := h.clients.Assignment.Client.ListSubmissions(
+		r.Context(),
+		&assignment.ListSubmissionsRequest{
+			AssignmentId: assignmentID,
+		},
+	)
+	if err != nil {
+		fetchError(w, "Could not fetch assignment submissions", err)
+		return
+	}
+
 	renderPage(w, r, view.AssignmentPage(view.AssignmentPageData{
-		PageData:   view.PageData{User: user},
-		Assignment: toDomainAssignment(res.GetAssignment()),
+		PageData:    view.PageData{User: user},
+		Assignment:  toDomainAssignment(assignmentsRes.GetAssignment()),
+		Submissions: toDomainSubmissions(submissionsRes.GetSubmissions()),
 	}))
 }

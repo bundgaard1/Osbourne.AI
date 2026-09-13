@@ -11,21 +11,21 @@ import (
 	"osbourne.local/course-content-service/internal/domain"
 )
 
-type CloverContentRepository struct {
+type CloverModuleRepository struct {
 	collectionName string
 	db             *c.DB
 }
 
-func NewCloverContentRepository(db *c.DB, cn string) *CloverContentRepository {
+func NewCloverModuleRepository(db *c.DB, cn string) *CloverModuleRepository {
 	// CreateCollection doubles as the existence check; ErrCollectionExist
 	// means the collection already exists, which is fine.
 	if err := db.CreateCollection(cn); err != nil && !errors.Is(err, c.ErrCollectionExist) {
 		panic(fmt.Sprintf("Could not create collection: %v", err))
 	}
-	return &CloverContentRepository{db: db, collectionName: cn}
+	return &CloverModuleRepository{db: db, collectionName: cn}
 }
 
-func (r *CloverContentRepository) ListModules(ctx context.Context, courseID string) ([]*domain.Module, error) {
+func (r *CloverModuleRepository) ListModules(ctx context.Context, courseID string) ([]*domain.Module, error) {
 	results, err := r.db.FindAll(query.NewQuery(r.collectionName).Where(query.Field("courseId").Eq(courseID)))
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (r *CloverContentRepository) ListModules(ctx context.Context, courseID stri
 	return modules, nil
 }
 
-func (r *CloverContentRepository) CreateModule(ctx context.Context, module *domain.Module) error {
+func (r *CloverModuleRepository) CreateModule(ctx context.Context, module *domain.Module) error {
 	doc := document.NewDocumentOf(module)
 	// fmt.Printf("Creating module with ID: %s \n", module.ID)
 	if doc == nil {
@@ -50,7 +50,7 @@ func (r *CloverContentRepository) CreateModule(ctx context.Context, module *doma
 	return err
 }
 
-func (r *CloverContentRepository) GetModule(ctx context.Context, moduleID string) (*domain.Module, error) {
+func (r *CloverModuleRepository) GetModule(ctx context.Context, moduleID string) (*domain.Module, error) {
 	assertion := query.Field("id").Eq(moduleID)
 	doc, err := r.db.FindFirst(query.NewQuery(r.collectionName).Where(assertion))
 	if err != nil {
@@ -64,7 +64,7 @@ func (r *CloverContentRepository) GetModule(ctx context.Context, moduleID string
 	return toDomainModule(doc)
 }
 
-func (r *CloverContentRepository) UpdateModule(ctx context.Context, module *domain.Module) error {
+func (r *CloverModuleRepository) UpdateModule(ctx context.Context, module *domain.Module) error {
 	doc := document.NewDocumentOf(module)
 	if doc == nil {
 		return fmt.Errorf("failed to convert module to document")
@@ -82,7 +82,7 @@ func (r *CloverContentRepository) UpdateModule(ctx context.Context, module *doma
 	return nil
 }
 
-func (r *CloverContentRepository) DeleteModule(ctx context.Context, moduleID string) error {
+func (r *CloverModuleRepository) DeleteModule(ctx context.Context, moduleID string) error {
 	assertion := query.Field("id").Eq(moduleID)
 
 	err := r.db.Delete(query.NewQuery(r.collectionName).Where(assertion))
@@ -93,7 +93,7 @@ func (r *CloverContentRepository) DeleteModule(ctx context.Context, moduleID str
 	return err
 }
 
-// func (r *CloverContentRepository) AddAttachmentToModule(ctx context.Context, moduleID string, attachment *domain.Attachment) error {
+// func (r *CloverModuleRepository) AddAttachmentToModule(ctx context.Context, moduleID string, attachment *domain.Attachment) error {
 // 	assertion := query.Field("id").Eq(moduleID)
 
 // 	var updateErr error
@@ -124,7 +124,7 @@ func (r *CloverContentRepository) DeleteModule(ctx context.Context, moduleID str
 // 	return nil
 // }
 
-// func (r *CloverContentRepository) RemoveAttachmentFromModule(ctx context.Context, moduleID string, attachmentID string) error {
+// func (r *CloverModuleRepository) RemoveAttachmentFromModule(ctx context.Context, moduleID string, attachmentID string) error {
 // 	assertion := query.Field("id").Eq(moduleID)
 
 // 	var updateErr error
@@ -161,7 +161,7 @@ func (r *CloverContentRepository) DeleteModule(ctx context.Context, moduleID str
 
 // }
 
-func (r *CloverContentRepository) GetAllModules(ctx context.Context) ([]*domain.Module, int32, error) {
+func (r *CloverModuleRepository) GetAllModules(ctx context.Context) ([]*domain.Module, int32, error) {
 	result, err := r.db.FindAll(query.NewQuery(r.collectionName))
 	if err != nil {
 		return nil, 0, err

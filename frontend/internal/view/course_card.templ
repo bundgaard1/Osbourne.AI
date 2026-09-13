@@ -5,6 +5,8 @@ import "osbourne.local/frontend/internal/domain"
 var enrollOnce = templ.NewOnceHandle()
 
 templ CourseCard(course domain.Course) {
+	@ToastScript()
+
 	@enrollOnce.Once() {
 		<script>
 			document.addEventListener('submit', function (event) {
@@ -34,7 +36,7 @@ templ CourseCard(course domain.Course) {
 					.then(function (result) {
 						if (result.ok && result.data.success) {
 							showToast(result.data.message || 'Enrolled successfully', 'success');
-						} else {
+						} else {	
 							if (button) button.disabled = false;
 							showToast(result.data.message || 'Could not complete enrollment', 'error');
 						}

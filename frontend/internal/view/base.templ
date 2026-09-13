@@ -10,6 +10,32 @@ type PageData struct {
 
 var toastOnce = templ.NewOnceHandle()
 
+templ ToastScript() {
+	@toastOnce.Once() {
+		<script>
+			function showToast(message, kind) {
+				var toasts = document.getElementById('toasts');
+				if (!toasts) return;
+
+				var toast = document.createElement('div');
+				toast.className = 'toast toast-' + (kind === 'error' ? 'error' : 'success');
+				toast.setAttribute('role', 'status');
+				toast.textContent = message;
+				toasts.appendChild(toast);
+
+				while (toasts.children.length > 3) {
+					toasts.removeChild(toasts.firstChild);
+				}
+
+				setTimeout(function () {
+					toast.classList.add('toast-leaving');
+					setTimeout(function () { toast.remove(); }, 250);
+				}, 3500);
+			}
+		</script>
+	}
+}
+
 templ Base(user domain.User) {
 	<!DOCTYPE html>
 	<html lang="en">
@@ -41,23 +67,9 @@ templ Base(user domain.User) {
 				</div>
 			</div>
 
-			<div id="toasts"></div>
+			<div id="toasts" aria-live="polite" aria-atomic="true"></div>
 
-			@toastOnce.Once() {
-				<script>
-					function showToast(message, kind) {
-						var toasts = document.getElementById('toasts');
-						if (!toasts) return;
-
-						var toast = document.createElement('div');
-						toast.className = 'toast toast-' + (kind === 'error' ? 'error' : 'success');
-						toast.textContent = message;
-						toasts.appendChild(toast);
-
-						setTimeout(function () { toast.remove(); }, 3500);
-					}
-				</script>
-			}
+			@ToastScript()
 		</body>
 	</html>
 }

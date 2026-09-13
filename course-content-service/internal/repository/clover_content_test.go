@@ -34,11 +34,11 @@ func setupTestDB(t *testing.T) (*c.DB, func()) {
 	return db, cleanup
 }
 
-func TestCloverContentRepository_CreateAndGetModule(t *testing.T) {
+func TestCloverModuleRepository_CreateAndGetModule(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := repository.NewCloverContentRepository(db, "modules-test")
+	repo := repository.NewCloverModuleRepository(db, "modules-test")
 	ctx := context.Background()
 
 	inputModule := &domain.Module{
@@ -87,11 +87,11 @@ func TestCloverContentRepository_CreateAndGetModule(t *testing.T) {
 	// }
 }
 
-func TestCloverContentRepository_ListModulesByCourseID(t *testing.T) {
+func TestCloverModuleRepository_ListModulesByCourseID(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := repository.NewCloverContentRepository(db, "modules-test")
+	repo := repository.NewCloverModuleRepository(db, "modules-test")
 	ctx := context.Background()
 
 	modules := []*domain.Module{
@@ -117,11 +117,11 @@ func TestCloverContentRepository_ListModulesByCourseID(t *testing.T) {
 	}
 }
 
-func TestCloverContentRepository_UpdateAndDeleteModule(t *testing.T) {
+func TestCloverModuleRepository_UpdateAndDeleteModule(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := repository.NewCloverContentRepository(db, "modules-test")
+	repo := repository.NewCloverModuleRepository(db, "modules-test")
 	ctx := context.Background()
 
 	module := &domain.Module{
@@ -170,11 +170,11 @@ func TestCloverContentRepository_UpdateAndDeleteModule(t *testing.T) {
 	}
 }
 
-// func TestCloverContentRepository_AddAndRemoveAttachment(t *testing.T) {
+// func TestCloverModuleRepository_AddAndRemoveAttachment(t *testing.T) {
 // 	db, cleanup := setupTestDB(t)
 // 	defer cleanup()
 
-// 	repo := repository.NewCloverContentRepository(db, "modules-test")
+// 	repo := repository.NewCloverModuleRepository(db, "modules-test")
 // 	ctx := context.Background()
 
 // 	module := &domain.Module{
@@ -230,7 +230,7 @@ func TestCloverContentRepository_UpdateAndDeleteModule(t *testing.T) {
 // 	}
 // }
 
-func LogAllModules(t *testing.T, repo *repository.CloverContentRepository) {
+func LogAllModules(t *testing.T, repo *repository.CloverModuleRepository) {
 	t.Helper()
 	ctx := context.Background()
 	modules, n, err := repo.GetAllModules(ctx)

@@ -6,17 +6,76 @@ import "osbourne.local/frontend/internal/domain"
 type AssignmentPageData struct {
     PageData
     Assignment domain.Assignment
+    Submissions []domain.Submission
 }
 
+var submitAssignmentOnce = templ.NewOnceHandle()
+
 templ AssignmentPage(data AssignmentPageData) {
+
+    @submitAssignmentOnce.Once() {
+        <script>
+            document.addEventListener('submit', function (event) {
+                var form = event.target.closest('form');
+                if (!form || !form.action.includes('/submit')) return;
+
+                event.preventDefault();
+                var button = form.querySelector('button');
+                if (button) button.disabled = true;
+
+                var formData = new FormData(form);
+
+                fetch('/api/assignments/' + data.Assignment.ID + '/submit', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(function (resp) {
+                        return resp.json().catch(function () { return {}; }).then(function (data) {
+                            return { ok: resp.ok, data: data };
+                        });
+                    })
+                    .then(function (result) {
+                        if (result.ok && result.data.success) {
+                            showToast(result.data.message || 'Submitted successfully', 'success');
+                            window.location.reload();
+                        } else {	
+                            if (button) button.disabled = false;
+                            showToast(result.data.message || 'Could not complete submission', 'error');
+                        }
+                    })
+                    .catch(function () {
+                        if (button) button.disabled = false;
+                        showToast('Could not complete submission', 'error');
+                    });
+            });
+        </script>
+    }
+
     @Base(data.User) {
         <section>
             <h1>{ data.Assignment.Title }</h1>
             <p><strong>Description:</strong> { data.Assignment.Description }</p>
-            <p><strong>Due Date:</strong> { data.Assignment.DueDate.Format("2006-01-02 15:04:05") }</p>
+            <p><strong>Due Date:</strong> { data.Assignment.DueDate.Format("15:04:05 2006-01-02") }</p>
         </section>
+
         <section>
             <h2>Submit here</h2>
+            <form method="POST" action="" enctype="multipart/form-data">
+                <input type="file" name="submission_file" required>
+                <button type="submit">Submit Assignment</button>
+            </form>
+        </section>
+
+        <section>
+            <h2>All Submissions</h2>
+            <ul>
+                for _, submission := range data.Submissions {
+                    <li>
+                        @SubmissionCard(submission)
+                    </li>
+                }
+            </ul>
+
         </section>
     }
 }

@@ -1,55 +1,55 @@
 version: v1
 plugins:
   # For Frontend
-  - plugin: buf.build/protocolbuffers/go:v1.33.0
+  - plugin: go
     out: ../frontend/gen
     opt: paths=source_relative
 
-  - plugin: buf.build/grpc/go:v1.3.0
+  - plugin: go-grpc
     out: ../frontend/gen
     opt: paths=source_relative
 
   # For Users Service
-  - plugin: buf.build/protocolbuffers/go:v1.33.0
+  - plugin: go
     out: ../profile-service/gen
     opt: paths=source_relative
 
-  - plugin: buf.build/grpc/go:v1.3.0
+  - plugin: go-grpc
     out: ../profile-service/gen
     opt: paths=source_relative
-  
-  # For Users Service
-  - plugin: buf.build/protocolbuffers/go:v1.33.0
+
+  # For Notification Service
+  - plugin: go
     out: ../notification-service/gen
     opt: paths=source_relative
 
-  - plugin: buf.build/grpc/go:v1.3.0
+  - plugin: go-grpc
     out: ../notification-service/gen
     opt: paths=source_relative
 
   # For Course Catalogue Service
-  - plugin: buf.build/protocolbuffers/go:v1.33.0
+  - plugin: go
     out: ../course-catalogue-service/gen
     opt: paths=source_relative
 
-  - plugin: buf.build/grpc/go:v1.3.0
+  - plugin: go-grpc
     out: ../course-catalogue-service/gen
     opt: paths=source_relative
 
-    # For Course Content Service
-  - plugin: buf.build/protocolbuffers/go:v1.33.0
+  # For Course Content Service
+  - plugin: go
     out: ../course-content-service/gen
     opt: paths=source_relative
 
-  - plugin: buf.build/grpc/go:v1.3.0
+  - plugin: go-grpc
     out: ../course-content-service/gen
     opt: paths=source_relative
 
   # For Assignment Service
-  - plugin: buf.build/protocolbuffers/go:v1.33.0
+  - plugin: go
     out: ../assignment-service/gen
     opt: paths=source_relative
 
-  - plugin: buf.build/grpc/go:v1.3.0
+  - plugin: go-grpc
     out: ../assignment-service/gen
     opt: paths=source_relative

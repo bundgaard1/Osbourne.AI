@@ -42,7 +42,7 @@ func main() {
 		log.Fatalf("Failed to seed CloverDB: %v", err)
 	}
 
-	courseContentRepo := repository.NewCloverContentRepository(cloverdb, "modules")
+	courseContentRepo := repository.NewCloverModuleRepository(cloverdb, "modules")
 	courseContentSvc := service.NewModuleService(courseContentRepo)
 	courseContentGrpcServer := server.NewContentServer(courseContentSvc)
 

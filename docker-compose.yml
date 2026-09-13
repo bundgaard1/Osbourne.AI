@@ -131,6 +131,7 @@ services:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/assignment.db
       - UPLOAD_DIR=/app/data/uploads
+      - SEED_DATA=true
     volumes:
       - assignment-data:/app/data
     depends_on:

@@ -115,7 +115,6 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 * [x] **Grading Repository:** Implement `CreateSubmission` and `UpdateGrade`.
 * [x] **Service Layer & Event Triggering:**
 * [x] In `GradeSubmission()` the grade is saved in the SQL database.
-* [ ] As soon as the DB update succeeds, a `grade.published` event is published on RabbitMQ with `{student_id, course_id, grade}`.
 
 #### **3. gRPC Server Setup**
 
@@ -124,13 +123,13 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 #### **4. Frontend / BFF Integration & Test**
 
-* [ ] **UI Form:** Create a simple page/form in the frontend where an instructor can select a student and enter a grade.
-* [ ] **Verification of Event Flow:**
-1. Instructor clicks "Save Grade" $\rightarrow$ Frontend calls `/api/grades`.
-2. Frontend calls `grading-service` via gRPC.
-3. `grading-service` saves in its DB and sends a `grade.published` event on RabbitMQ.
-4. `notification-service` catches the event and saves a notification ("You have received the grade A in CS101").
-5. The student logs in and sees the notification on their dashboard.
+* [x] **UI Form:** Create a simple page/form in the frontend where an instructor can select a student and enter a grade.
+* [x] **Backend Call:** The form submits to the BFF, which calls `GradingClient.GradeSubmission()`. And persists
+
+
+* [ ] Students can upload files for assignments. and it persists the file in the `assignment-service`'s `UPLOAD_DIR` and stores the file path in the `submissions` table.
+* [ ] Download of submitted files.
+
 
 ---
 
@@ -240,16 +239,8 @@ docker compose up -d --scale profile-service=3 --scale notification-service=2
 * **Test:** Run a stress test with `hey` or `ab`:
 ```bash
 hey -n 200 -c 20 http://localhost/api/v1/courses
-
 ```
-
-## Extra add ons.
-
-### Content Service (CloverDB) - Additional Features
-
-- Add list of files to modules!
-
----
+--- 
 
 ## Issues and Additional Features
 

@@ -95,3 +95,29 @@ func toDomainAssignment(a *assignment.Assignment) domain.Assignment {
 		DueDate:     a.GetDueDate().AsTime(),
 	}
 }
+
+func toDomainSubmissions(submissions []*assignment.Submission) []domain.Submission {
+	result := make([]domain.Submission, 0, len(submissions))
+	for _, s := range submissions {
+		result = append(result, toDomainSubmission(s))
+	}
+	return result
+}
+
+func toDomainSubmission(s *assignment.Submission) domain.Submission {
+	if s == nil {
+		return domain.Submission{}
+	}
+
+	return domain.Submission{
+		ID:           s.GetId(),
+		AssignmentID: s.GetAssignmentId(),
+		StudentID:    s.GetStudentId(),
+		Filename:     s.GetFilename(),
+		FileSize:     s.GetSize(),
+		SubmittedAt:  s.GetSubmittedAt().AsTime(),
+		Graded:       s.GetGraded(),
+		Score:        int(s.GetScore()),
+		Feedback:     s.GetFeedback(),
+	}
+}

@@ -28,7 +28,7 @@ type Config struct {
 }
 
 func loadConfig() Config {
-	port := os.Getenv("GRPC_PORT")
+	port := os.Getenv("PORT")
 	if port == "" {
 		port = "50051"
 	}

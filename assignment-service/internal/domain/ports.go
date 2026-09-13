@@ -16,15 +16,10 @@ type SubmissionRepository interface {
 	GetByID(ctx context.Context, id string) (*Submission, error)
 	Update(ctx context.Context, submission *Submission) error
 	ListByAssignment(ctx context.Context, assignmentID string) ([]*Submission, error)
-	GetByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) (*Submission, error) // Ofte nødvendig
+	GetByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) (*Submission, error)
 }
 
-// FileStorage persists the raw bytes of submission files on the local
-// filesystem. Paths are relative to the storage root and are built from
-// server-side identifiers only.
-
 type FileStorage interface {
-	// Save writes the content to relativePath atomically and returns total bytes written.
 	Save(ctx context.Context, relativePath string, src io.Reader) (int64, error)
 	Get(ctx context.Context, relativePath string) (io.ReadCloser, error)
 	Delete(ctx context.Context, relativePath string) error
