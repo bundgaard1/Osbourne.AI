@@ -55,6 +55,8 @@ func (h *Handler) HandleEnrollCourse(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, enrollResponse{Success: true, Message: title})
 }
 
+const maxUploadBytes = 10 << 20 // 10 MB
+
 func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request) {
 	assignmentID := chi.URLParam(r, "assignmentID")
 	if assignmentID == "" {
@@ -62,10 +64,69 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID := UserFromContext(r.Context()).ID
-	_ = userID
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 
-	// TODO: Implement assignment submission logic
+	file, header, err := r.FormFile("submission_file")
+	if err != nil {
+		log.Printf("failed to read submission file: %v", err)
+		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Missing submission file"})
+		return
+	}
+	defer file.Close()
+
+	userID := UserFromContext(r.Context()).ID
+
+	stream, err := h.clients.Assignment.Client.SubmitAssignment(r.Context())
+	if err != nil {
+		log.Printf("gRPC call SubmitAssignment (open stream) failed: %v", err)
+		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not start upload"})
+		return
+	}
+
+	if err := stream.Send(&assignment.SubmitAssignmentRequest{
+		Payload: &assignment.SubmitAssignmentRequest_Metadata{
+			Metadata: &assignment.SubmissionMetadata{
+				AssignmentId: assignmentID,
+				StudentId:    userID,
+				Filename:     header.Filename,
+				Size:         header.Size,
+			},
+		},
+	}); err != nil {
+		log.Printf("gRPC call SubmitAssignment (send metadata) failed: %v", err)
+		writeJSON(w, http.StatusBadGateway, enrollResponse{Success: false, Message: "Could not upload file"})
+		return
+	}
+
+	buf := make([]byte, 64*1024)
+	for {
+		n, readErr := file.Read(buf)
+		if n > 0 {
+			if sendErr := stream.Send(&assignment.SubmitAssignmentRequest{
+				Payload: &assignment.SubmitAssignmentRequest_Chunk{Chunk: buf[:n]},
+			}); sendErr != nil {
+				log.Printf("gRPC call SubmitAssignment (send chunk) failed: %v", sendErr)
+				writeJSON(w, http.StatusBadGateway, enrollResponse{Success: false, Message: "Could not upload file"})
+				return
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			log.Printf("failed while reading submission file: %v", readErr)
+			writeJSON(w, http.StatusBadGateway, enrollResponse{Success: false, Message: "Could not upload file"})
+			return
+		}
+	}
+
+	if _, err := stream.CloseAndRecv(); err != nil {
+		log.Printf("gRPC call SubmitAssignment (finish) failed: %v", err)
+		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not submit assignment"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, enrollResponse{Success: true, Message: "Assignment submitted successfully"})
 }
 
 func (h *Handler) HandleDownloadSubmission(w http.ResponseWriter, r *http.Request) {

@@ -19,9 +19,9 @@ INFS605 - course project
 - Notification Service
 - Authentication Service
 
+### Standard Services
 + Frontend UI,
 + API Gateway (Use Nginx or Traefik)
-
 + Monitoring and Logging (Prometheus, Grafana, ELK stack)
 
 ## Functional
@@ -36,7 +36,8 @@ INFS605 - course project
 - Include documentation and usage instructions
 - System must support logging, basic error handling
 
-# Architecture
+
+# Design
 - Microservices architecture with DockerCompose
 - Go-based services
 - Frontend in Go with HTML templates

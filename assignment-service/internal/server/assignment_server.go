@@ -91,6 +91,16 @@ func (s *AssignmentServer) SubmitAssignment(stream assignmentpb.AssignmentServic
 		return status.Error(codes.InvalidArgument, "metadata must contain assignment_id, student_id and filename")
 	}
 
+	// Fail fast before consuming the stream so an invalid assignment does not
+	// leave a stuck pipe reader in the service.
+	assignment, err := s.svc.GetAssignment(stream.Context(), meta.GetAssignmentId())
+	if err != nil {
+		return err
+	}
+	if assignment == nil {
+		return status.Error(codes.NotFound, "assignment not found")
+	}
+
 	pr, pw := io.Pipe()
 
 	go func() {

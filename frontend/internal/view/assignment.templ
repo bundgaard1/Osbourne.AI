@@ -25,8 +25,8 @@ templ AssignmentPage(data AssignmentPageData) {
 
                 var formData = new FormData(form);
 
-                fetch('/api/assignments/' + data.Assignment.ID + '/submit', {
-                    method: 'POST',
+                fetch(form.action, {
+m                    method: 'POST',
                     body: formData
                 })
                     .then(function (resp) {
@@ -60,7 +60,7 @@ templ AssignmentPage(data AssignmentPageData) {
 
         <section>
             <h2>Submit here</h2>
-            <form method="POST" action="" enctype="multipart/form-data">
+            <form method="POST" action={"/api/assignments/" + data.Assignment.ID + "/submit"} enctype="multipart/form-data">
                 <input type="file" name="submission_file" required>
                 <button type="submit">Submit Assignment</button>
             </form>

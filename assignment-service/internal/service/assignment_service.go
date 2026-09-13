@@ -70,14 +70,12 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 		return nil, ErrAssignmentNotFound
 	}
 
-	// 2. Build a flat storage path from server-side identifiers only: the
-	//    file is stored under a fresh UUID, so the path is safe against
-	//    path traversal and never leaks the original filename.
+	// 2. Create a unique file path
 	submissionID := uuid.NewString()
 	fileID := uuid.NewString()
 	filePath := fileID + sanitizedExtension(in.FileName)
 
-	// 3. Save the physical file
+	// 3. Save the file to the file storage
 	sizeOut, err := s.fileStore.Save(ctx, filePath, src)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save file: %w", err)
@@ -88,7 +86,7 @@ func (s *AssignmentService) SubmitAssignment(ctx context.Context, in SubmitAssig
 		ID:           submissionID,
 		AssignmentID: in.AssignmentID,
 		StudentID:    in.StudentID,
-		FileID:      filePath,
+		FileID:       filePath,
 		FileName:     in.FileName,
 		FileSize:     sizeOut,
 		SubmittedAt:  time.Now(),

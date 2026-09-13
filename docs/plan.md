@@ -58,9 +58,9 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 * **Action:** Create `notification-service` with a NoSQL/In-App DB (MongoDB/SQLite) for notification history.
 * **Implementation:**
-1. Create a RabbitMQ consumer that listens for events (e.g. `grade.published`, `student.created`).
-2. Add a gRPC endpoint (`GetUserNotifications`, `MarkAsRead`) so the frontend can show unread notifications on login.
-3. Show Notifications in the frontend via the `/notifications` page.
+  1. Create a RabbitMQ consumer that listens for events (e.g. `grade.published`, `student.created`).
+  2. Add a gRPC endpoint (`GetUserNotifications`, `MarkAsRead`) so the frontend can show unread notifications on login.
+  3. Show Notifications in the frontend via the `/notifications` page.
 
 * **Test:** Send a test event to RabbitMQ and verify via gRPC that the notification can be fetched.
 
@@ -124,14 +124,10 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 #### **4. Frontend / BFF Integration & Test**
 
 * [x] **UI Form:** Create a simple page/form in the frontend where an instructor can select a student and enter a grade.
-* [x] **Backend Call:** The form submits to the BFF, which calls `GradingClient.GradeSubmission()`. And persists
-
-
-* [ ] Students can upload files for assignments. and it persists the file in the `assignment-service`'s `UPLOAD_DIR` and stores the file path in the `submissions` table.
+* [x] **Backend Call:** The form submits to the BFF, which calls `GradingClient.GradeSubmission()`. And persists the grade in the SQL database.
+* [x] Students can upload files for assignments. and it persists the file in the `assignment-service`'s `UPLOAD_DIR` and stores the file path in the `submissions` table.
 * [x] Download of submitted files.
 
-
----
 
 ### [ ] Step 3.4: Event Publishing from Services
 
