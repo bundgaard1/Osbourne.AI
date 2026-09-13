@@ -32,7 +32,6 @@ message Notification {
   string user_id = 2;
   string title = 3;
   string msg = 4;
-  string link = 5;
   bool isRead = 6;
   google.protobuf.Timestamp timestamp = 7;
 }

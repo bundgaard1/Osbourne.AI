@@ -31,8 +31,7 @@ func toDomainNotification(n *notification.Notification) domain.Notification {
 		ID:        n.GetId(),
 		Title:     n.GetTitle(),
 		Message:   n.GetMsg(),
-		Read:      n.GetIsRead(),
-		Link:      n.GetLink(),
+		IsRead:    n.GetIsRead(),
 		Timestamp: n.GetTimestamp().AsTime(),
 	}
 }

@@ -52,7 +52,6 @@ func toProtoNotification(n *domain.Notification) *notification.Notification {
 		UserId: n.UserID,
 		Title:  n.Title,
 		Msg:    n.Message,
-		Link:   n.LinkURL,
 		IsRead: n.IsRead,
 	}
 }

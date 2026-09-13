@@ -2,12 +2,55 @@ package view
 
 import "osbourne.local/frontend/internal/domain"
 
+var notificationMarkReadOnce = templ.NewOnceHandle()
+
 templ NotificationItem(n domain.Notification) {
-	<a href={ n.Link }>
-		if !n.Read {
+
+	@notificationMarkReadOnce.Once() {
+		<script>
+			document.addEventListener('click', function (event) {
+				var button = event.target.closest('button.mark-read-button');
+				if (!button) return;
+
+				event.preventDefault();
+				var notificationItem = button.closest('.notification-item');
+				if (!notificationItem) return;
+
+				var notificationId = notificationItem.getAttribute('data-notification-id');
+				if (!notificationId) return;
+
+				fetch("/api/notifications/" + notificationId + "/mark-read", {
+					method: 'POST'
+				})
+					.then(function (resp) {
+						return resp.json().catch(function () { return {}; }).then(function (data) {
+							return { ok: resp.ok, data: data };
+						});
+					})
+					.then(function (result) {
+						if (result.ok && result.data.success) {
+							showToast(result.data.message || 'Notification marked as read', 'success');
+							window.location.reload();
+						} else {
+							showToast(result.data.message || 'Could not mark notification as read', 'error');
+						}
+					})
+					.catch(function () {
+						showToast('Could not mark notification as read', 'error');
+					});
+			});
+		</script>
+	}
+
+
+	<div class="notification-item" data-notification-id={ n.ID }>
+		if !n.IsRead {
 			<p class="new-badge">(New)</p>
 		}
 		<strong>{ n.Title }</strong> ({ n.Timestamp.Format("02-01-2006 15:04") })
 		<p>{ n.Message }</p>
-	</a>
+		if !n.IsRead {
+			<button class="mark-read-button">Mark as read</button>
+		}
+	</div>
 }

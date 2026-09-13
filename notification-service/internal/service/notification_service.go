@@ -17,22 +17,30 @@ func NewNotificationService(repo domain.NotificationRepository) *NotificationSer
 }
 
 func (s *NotificationService) GetUserNotifications(ctx context.Context, id string) (*[]domain.Notification, error) {
-	return s.repo.GetUserNotifications(ctx, id)
+	return s.repo.ListByUser(ctx, id)
 }
 
 func (s *NotificationService) MarkNotificationAsRead(ctx context.Context, notificationID string) (*domain.Notification, error) {
-	return s.repo.MarkNotificationAsRead(ctx, notificationID)
+
+	notification, err := s.repo.Get(ctx, notificationID)
+	if err != nil {
+		return nil, err
+	}
+	notification.IsRead = true
+	notification.UpdatedAt = time.Now()
+
+	return s.repo.Update(ctx, notification)
 }
 
-func (s *NotificationService) CreateNotification(ctx context.Context, userID string, title string, message string, link string) error {
+func (s *NotificationService) CreateNotification(ctx context.Context, userID string, title string, message string) error {
 	n := &domain.Notification{
 		ID:        uuid.NewString(),
 		UserID:    userID,
 		Title:     title,
 		Message:   message,
-		LinkURL:   link,
 		IsRead:    false,
 		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
-	return s.repo.CreateNotification(ctx, n)
+	return s.repo.Create(ctx, n)
 }

@@ -15,7 +15,7 @@ func NewGORMNotificationRepository(db *gorm.DB) *GORMNotificationRepository {
 	return &GORMNotificationRepository{db: db}
 }
 
-func (r *GORMNotificationRepository) GetUserNotifications(ctx context.Context, id string) (*[]domain.Notification, error) {
+func (r *GORMNotificationRepository) ListByUser(ctx context.Context, id string) (*[]domain.Notification, error) {
 
 	var notifications []domain.Notification
 
@@ -30,27 +30,30 @@ func (r *GORMNotificationRepository) GetUserNotifications(ctx context.Context, i
 	return &notifications, nil
 }
 
-func (r *GORMNotificationRepository) MarkNotificationAsRead(ctx context.Context, notificationID string) (*domain.Notification, error) {
-	var notificationEntity domain.Notification
+func (r *GORMNotificationRepository) Get(ctx context.Context, id string) (*domain.Notification, error) {
+
+	var notification domain.Notification
 
 	err := r.db.WithContext(ctx).
-		First(&notificationEntity, "id = ?", notificationID).Error
+		Where("id = ?", id).
+		First(&notification).Error
 
 	if err != nil {
 		return nil, err
 	}
 
-	notificationEntity.IsRead = true
-
-	err = r.db.WithContext(ctx).Save(&notificationEntity).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return &notificationEntity, nil
+	return &notification, nil
 }
 
-func (r *GORMNotificationRepository) CreateNotification(ctx context.Context, notification *domain.Notification) error {
+func (r *GORMNotificationRepository) Update(ctx context.Context, notification *domain.Notification) (*domain.Notification, error) {
+	err := r.db.WithContext(ctx).Save(notification).Error
+	if err != nil {
+		return nil, err
+	}
+	return notification, nil
+}
+
+func (r *GORMNotificationRepository) Create(ctx context.Context, notification *domain.Notification) error {
 
 	err := r.db.WithContext(ctx).Create(&notification).Error
 	if err != nil {

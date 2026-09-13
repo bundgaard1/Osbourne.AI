@@ -50,6 +50,7 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 			r.Post("/assignments/{assignmentID}/submit", h.HandleSubmitAssignment)
 			r.Get("/submissions/{submissionID}/download", h.HandleDownloadSubmission)
 			r.Post("/submissions/{submissionID}/grade", h.HandleGradeSubmission)
+			r.Post("/notifications/{notificationID}/mark-read", h.HandleMarkNotificationRead)
 		})
 	})
 

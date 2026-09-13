@@ -43,7 +43,6 @@ func SeedData(db *gorm.DB) {
 		UserID:  "12345",
 		Title:   "New grade received",
 		Message: "You received a 12 in INFS-605, link takes you to the root",
-		LinkURL: "/",
 		IsRead:  false,
 	}
 
@@ -52,7 +51,6 @@ func SeedData(db *gorm.DB) {
 		UserID:  "12345",
 		Title:   "Welcome to the platform",
 		Message: "Thank you for signing up for our platform!",
-		LinkURL: "/profile",
 		IsRead:  true,
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"osbourne.local/frontend/gen/assignment"
 	coursecatalogue "osbourne.local/frontend/gen/course-catalogue"
+	"osbourne.local/frontend/gen/notification"
 )
 
 type enrollResponse struct {
@@ -224,6 +225,29 @@ func (h *Handler) HandleGradeSubmission(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, enrollResponse{Success: true, Message: "Submission graded successfully"})
+}
+
+func (h *Handler) HandleMarkNotificationRead(w http.ResponseWriter, r *http.Request) {
+	notificationID := chi.URLParam(r, "notificationID")
+	if notificationID == "" {
+		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Missing notificationID"})
+		return
+	}
+
+	resp, err := h.clients.Notification.Client.MarkNotificationAsRead(r.Context(),
+		&notification.MarkNotificationAsReadRequest{NotificationId: notificationID})
+	if err != nil {
+		log.Printf("gRPC call MarkNotificationAsRead failed: %v", err)
+		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not mark notification as read"})
+		return
+	}
+
+	if !resp.GetSuccess() {
+		writeJSON(w, http.StatusNotFound, enrollResponse{Success: false, Message: "Notification not found"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, enrollResponse{Success: true, Message: "Notification marked as read"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

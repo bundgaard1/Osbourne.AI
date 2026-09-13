@@ -6,7 +6,8 @@ import (
 
 // NotificationRepository definerer alle database-operationer for notifikationer
 type NotificationRepository interface {
-	GetUserNotifications(context.Context, string) (*[]Notification, error)
-	MarkNotificationAsRead(context.Context, string) (*Notification, error)
-	CreateNotification(context.Context, *Notification) error
+	Create(context.Context, *Notification) error
+	Get(context.Context, string) (*Notification, error)
+	Update(context.Context, *Notification) (*Notification, error)
+	ListByUser(context.Context, string) (*[]Notification, error)
 }

@@ -12,8 +12,7 @@ type Notification struct {
 	ID        string
 	Title     string
 	Message   string
-	Read      bool
-	Link      string
+	IsRead    bool
 	Timestamp time.Time
 }
 

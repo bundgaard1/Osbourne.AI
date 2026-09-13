@@ -72,8 +72,7 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 		err := c.svc.CreateNotification(ctx,
 			event.GetStudentId(),
 			"Welcome to Osbourne!",
-			"Hello "+event.GetFullName()+", welcome to Osbourne! We are excited to have you on board.",
-			"/")
+			"Hello "+event.GetFullName()+", welcome to Osbourne! We are excited to have you on board.")
 
 		if err != nil {
 			log.Printf("[CONSUMER] Error on creating notification: %v", err)
@@ -89,8 +88,7 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 		err := c.svc.CreateNotification(ctx,
 			event.GetStudentId(),
 			"Enrolled in Course: "+event.GetCourseCode(),
-			"You have been enrolled in the course: "+event.GetCourseName()+"("+event.GetCourseId()+").",
-			"/courses/"+event.GetCourseId())
+			"You have been enrolled in the course: "+event.GetCourseName()+"("+event.GetCourseId()+").")
 
 		if err != nil {
 			log.Printf("[CONSUMER] Error on creating notification: %v", err)
