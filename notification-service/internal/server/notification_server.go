@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"osbourne.local/notification-service/gen/notification"
 	"osbourne.local/notification-service/internal/domain"
 	"osbourne.local/notification-service/internal/service"
@@ -48,10 +50,11 @@ func (s *NotificationServer) MarkNotificationAsRead(ctx context.Context, req *no
 
 func toProtoNotification(n *domain.Notification) *notification.Notification {
 	return &notification.Notification{
-		Id:     n.ID,
-		UserId: n.UserID,
-		Title:  n.Title,
-		Msg:    n.Message,
-		IsRead: n.IsRead,
+		Id:        n.ID,
+		UserId:    n.UserID,
+		Title:     n.Title,
+		Msg:       n.Message,
+		IsRead:    n.IsRead,
+		Timestamp: timestamppb.New(n.CreatedAt),
 	}
 }

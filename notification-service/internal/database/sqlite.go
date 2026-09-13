@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"time"
 
 	// Use the official GORM dialect adapter from glebarez:
 
@@ -39,19 +40,23 @@ func SeedData(db *gorm.DB) {
 	}
 
 	notification := domain.Notification{
-		ID:      "1",
-		UserID:  "12345",
-		Title:   "New grade received",
-		Message: "You received a 12 in INFS-605, link takes you to the root",
-		IsRead:  false,
+		ID:        "1",
+		UserID:    "12345",
+		Title:     "New grade received",
+		Message:   "You received a 12 in INFS-605, link takes you to the root",
+		IsRead:    false,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	notification2 := domain.Notification{
-		ID:      "2",
-		UserID:  "12345",
-		Title:   "Welcome to the platform",
-		Message: "Thank you for signing up for our platform!",
-		IsRead:  true,
+		ID:        "2",
+		UserID:    "12345",
+		Title:     "Welcome to the platform",
+		Message:   "Thank you for signing up for our platform!",
+		IsRead:    true,
+		CreatedAt: time.Now().Add(-24 * time.Hour),
+		UpdatedAt: time.Now().Add(-24 * time.Hour),
 	}
 
 	db.Create(&notification)
