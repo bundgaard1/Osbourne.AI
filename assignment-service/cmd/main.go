@@ -11,10 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wagslane/go-rabbitmq"
+
 	"google.golang.org/grpc"
 
 	"osbourne.local/assignment-service/gen/assignment"
 	"osbourne.local/assignment-service/internal/database"
+	"osbourne.local/assignment-service/internal/publisher"
 	"osbourne.local/assignment-service/internal/repository"
 	"osbourne.local/assignment-service/internal/seed"
 	"osbourne.local/assignment-service/internal/server"
@@ -97,7 +100,27 @@ func main() {
 	// 4. Dependency Injection
 	assignmentRepo := repository.NewGORMAssignmentRepository(db)
 	submissionRepo := repository.NewGORMSubmissionRepository(db)
-	appService := service.NewAssignmentService(assignmentRepo, submissionRepo, fileStore)
+
+	// RabbitMQ connection for publishing domain events (grade.published).
+	amqpURL := os.Getenv("RABBITMQ_URL")
+	if amqpURL == "" {
+		amqpURL = "amqp://guest:guest@rabbitmq:5672/"
+	}
+	rmqConn, err := rabbitmq.NewConn(amqpURL)
+	if err != nil {
+		slog.Error("failed to create rabbitmq connection", "err", err)
+		os.Exit(1)
+	}
+	defer rmqConn.Close()
+
+	evPublisher, err := publisher.New(rmqConn)
+	if err != nil {
+		slog.Error("failed to create rabbitmq publisher", "err", err)
+		os.Exit(1)
+	}
+	defer evPublisher.Close()
+
+	appService := service.NewAssignmentService(assignmentRepo, submissionRepo, fileStore, evPublisher)
 	grpcServerImpl := server.NewAssignmentServer(appService)
 
 	grpcServer := grpc.NewServer()

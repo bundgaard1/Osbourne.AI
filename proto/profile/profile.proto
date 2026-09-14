@@ -6,6 +6,7 @@ option go_package = "osbourne.local/profile-service/gen/profile;profile";
 
 service ProfileService {
   rpc GetUserProfile (ProfileRequest) returns (ProfileResponse);
+  rpc CreateProfile (CreateProfileRequest) returns (CreateProfileResponse);
 }
 
 message ProfileRequest {
@@ -16,4 +17,15 @@ message ProfileResponse {
   string id = 1;
   string name = 2;
   string role = 3;
+}
+
+message CreateProfileRequest {
+  string user_id = 1;
+  string email = 2;
+  string full_name = 3;
+  string role = 4;
+}
+
+message CreateProfileResponse {
+  bool success = 1;
 }

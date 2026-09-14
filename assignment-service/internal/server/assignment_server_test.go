@@ -35,7 +35,7 @@ func startAssignmentServer(t *testing.T) (assignmentpb.AssignmentServiceClient, 
 	}
 	assignmentRepo := repository.NewGORMAssignmentRepository(db)
 	submissionRepo := repository.NewGORMSubmissionRepository(db)
-	svc := service.NewAssignmentService(assignmentRepo, submissionRepo, storage)
+	svc := service.NewAssignmentService(assignmentRepo, submissionRepo, storage, nil)
 
 	grpcServer := grpc.NewServer()
 	assignmentpb.RegisterAssignmentServiceServer(grpcServer, server.NewAssignmentServer(svc))

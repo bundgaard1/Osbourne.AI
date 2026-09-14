@@ -46,9 +46,10 @@ func SeedData(db *gorm.DB) {
 	}
 
 	student := domain.UserProfile{
-		ID:   "12345",
-		Name: "Andy Osborne",
-		Role: "Student",
+		ID:    "12345",
+		Name:  "Andy Osborne",
+		Email: "andy.osborne@osbourne.local",
+		Role:  "Student",
 	}
 
 	db.Create(&student)

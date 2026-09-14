@@ -29,6 +29,21 @@ func (s *ProfileServer) GetUserProfile(ctx context.Context, req *profile.Profile
 	return profileProto, nil
 }
 
+func (s *ProfileServer) CreateProfile(ctx context.Context, req *profile.CreateProfileRequest) (*profile.CreateProfileResponse, error) {
+	p := &domain.UserProfile{
+		ID:    req.GetUserId(),
+		Name:  req.GetFullName(),
+		Email: req.GetEmail(),
+		Role:  domain.UserRole(req.GetRole()),
+	}
+
+	if err := s.profileSvc.CreateProfile(ctx, p); err != nil {
+		return nil, err
+	}
+
+	return &profile.CreateProfileResponse{Success: true}, nil
+}
+
 func toProtoProfile(p *domain.UserProfile) *profile.ProfileResponse {
 	return &profile.ProfileResponse{
 		Id:   p.ID,

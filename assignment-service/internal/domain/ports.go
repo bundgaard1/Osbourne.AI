@@ -24,3 +24,7 @@ type FileStorage interface {
 	Get(ctx context.Context, relativePath string) (io.ReadCloser, error)
 	Delete(ctx context.Context, relativePath string) error
 }
+
+type EventPublisher interface {
+	PublishGradePublished(ctx context.Context, event GradePublishedEvent) error
+}

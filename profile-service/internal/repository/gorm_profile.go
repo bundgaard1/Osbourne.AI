@@ -32,3 +32,11 @@ func (r *GORMProfileRepository) GetByID(ctx context.Context, id string) (*domain
 
 	return &profileEntity, nil
 }
+
+func (r *GORMProfileRepository) Create(ctx context.Context, profile *domain.UserProfile) error {
+	err := r.db.WithContext(ctx).Create(profile).Error
+	if err != nil {
+		return fmt.Errorf("could not create profile: %w", err)
+	}
+	return nil
+}

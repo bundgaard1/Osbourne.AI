@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -9,9 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
 	"osbourne.local/profile-service/gen/profile"
 	"osbourne.local/profile-service/internal/database"
+	"osbourne.local/profile-service/internal/publisher"
 	"osbourne.local/profile-service/internal/repository"
 	"osbourne.local/profile-service/internal/server"
 	"osbourne.local/profile-service/internal/service"
@@ -33,8 +34,6 @@ func main() {
 		dbPath = "./profiles.db"
 	}
 
-	fmt.Println("Database path:", dbPath) // Debugging line to check the DB_PATH value
-
 	db, err := database.NewGORMDB(dbPath)
 	if err != nil {
 		log.Fatalf("Database error: %v", err)
@@ -43,7 +42,25 @@ func main() {
 	database.SeedData(db)
 
 	profileRepo := repository.NewGORMProfileRepository(db)
-	profileSvc := service.NewProfileService(profileRepo)
+
+	// RabbitMQ connection for publishing domain events (student.created).
+	amqpURL := os.Getenv("RABBITMQ_URL")
+	if amqpURL == "" {
+		amqpURL = "amqp://guest:guest@rabbitmq:5672/"
+	}
+	conn, err := rabbitmq.NewConn(amqpURL)
+	if err != nil {
+		log.Fatalf("Error creating RabbitMQ connection: %v", err)
+	}
+	defer conn.Close()
+
+	pub, err := publisher.New(conn)
+	if err != nil {
+		log.Fatalf("Error creating RabbitMQ publisher: %v", err)
+	}
+	defer pub.Close()
+
+	profileSvc := service.NewProfileService(profileRepo, pub)
 	profileGrpcServer := server.NewProfileServer(profileSvc)
 
 	grpcServer := grpc.NewServer()

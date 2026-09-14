@@ -26,7 +26,7 @@ func setupService(t *testing.T) (
 	submissionRepo := testutils.NewFakeSubmissionRepository()
 	storage := testutils.NewFakeFileStorage()
 
-	svc := NewAssignmentService(assignmentsRepo, submissionRepo, storage)
+	svc := NewAssignmentService(assignmentsRepo, submissionRepo, storage, nil)
 
 	return svc, assignmentsRepo, submissionRepo, storage
 }

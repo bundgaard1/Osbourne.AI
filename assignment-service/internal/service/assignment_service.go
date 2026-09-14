@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,13 +20,15 @@ type AssignmentService struct {
 	assignmentRepo domain.AssignmentRepository
 	submissionRepo domain.SubmissionRepository
 	fileStore      domain.FileStorage
+	events         domain.EventPublisher
 }
 
-func NewAssignmentService(assignmentRepo domain.AssignmentRepository, submissionRepo domain.SubmissionRepository, fileStore domain.FileStorage) *AssignmentService {
+func NewAssignmentService(assignmentRepo domain.AssignmentRepository, submissionRepo domain.SubmissionRepository, fileStore domain.FileStorage, events domain.EventPublisher) *AssignmentService {
 	return &AssignmentService{
 		assignmentRepo: assignmentRepo,
 		submissionRepo: submissionRepo,
 		fileStore:      fileStore,
+		events:         events,
 	}
 }
 
@@ -121,16 +124,40 @@ func (s *AssignmentService) GradeSubmission(ctx context.Context, submissionID st
 	submission.Score = score
 	submission.Feedback = feedback
 
-	return s.submissionRepo.Update(ctx, submission)
+	if err := s.submissionRepo.Update(ctx, submission); err != nil {
+		return err
+	}
+	assignment, aErr := s.assignmentRepo.GetByID(ctx, submission.AssignmentID)
+	if aErr != nil {
+		return fmt.Errorf("failed to fetch assignment: %w", aErr)
+	}
+	if assignment == nil {
+		return fmt.Errorf("cant find assignment with ID: %s", submission.AssignmentID)
+	}
+
+	if s.events != nil {
+		if assignment, aErr := s.assignmentRepo.GetByID(ctx, submission.AssignmentID); aErr == nil && assignment != nil {
+			event := domain.GradePublishedEvent{
+				SubmissionID:   submission.ID,
+				AssignmentID:   submission.AssignmentID,
+				AssignmentName: assignment.Title,
+				StudentID:      submission.StudentID,
+				CourseID:       assignment.CourseID,
+				Score:          score,
+			}
+			if pubErr := s.events.PublishGradePublished(ctx, event); pubErr != nil {
+				slog.Warn("failed to publish grade.published event", "err", pubErr)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *AssignmentService) FileStorage() domain.FileStorage {
 	return s.fileStore
 }
 
-// sanitizedExtension returns the lowercase file extension from filename,
-// allowing only [a-z0-9] characters after the leading dot. It returns an
-// empty string when there is no safe extension to keep.
 func sanitizedExtension(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filepath.Base(filename)))
 	if len(ext) < 2 {

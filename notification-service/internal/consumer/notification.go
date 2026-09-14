@@ -31,6 +31,7 @@ func NewNotificationConsumer(conn *rabbitmq.Conn, svc *service.NotificationServi
 		rabbitmq.WithConsumerOptionsExchangeDeclare,
 		rabbitmq.WithConsumerOptionsRoutingKey("student.*"),
 		rabbitmq.WithConsumerOptionsRoutingKey("course.*"),
+		rabbitmq.WithConsumerOptionsRoutingKey("grade.*"),
 		rabbitmq.WithConsumerOptionsConcurrency(4),
 	)
 
@@ -95,7 +96,23 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 		err := c.svc.CreateNotification(ctx,
 			event.GetStudentId(),
 			"Enrolled in Course: "+event.GetCourseCode(),
-			"You have been enrolled in the course: "+event.GetCourseName()+"("+event.GetCourseId()+").")
+			"You have been enrolled in the course: "+event.GetCourseName()+".")
+
+		if err != nil {
+			log.Printf("[CONSUMER] Error on creating notification: %v", err)
+			return rabbitmq.NackRequeue
+		}
+	case "grade.published":
+		var event events.GradePublishedEvent
+		if err := proto.Unmarshal(envelope.Payload, &event); err != nil {
+			log.Printf("[CONSUMER] Error on unmarshal of GradePublishedEvent: %v", err)
+			return rabbitmq.NackDiscard
+		}
+
+		err := c.svc.CreateNotification(ctx,
+			event.GetStudentId(),
+			"Grade published",
+			fmt.Sprintf("Grade updated for Assignment: %s; \n Grade: %d; \n Course: %s.", event.GetAssignmentName(), event.GetGrade(), event.GetCourseId()))
 
 		if err != nil {
 			log.Printf("[CONSUMER] Error on creating notification: %v", err)

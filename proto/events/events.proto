@@ -27,3 +27,12 @@ message CourseEnrolledEvent {
   string course_code = 3;
   string course_name = 4;
 }
+
+message GradePublishedEvent {
+  string submission_id = 1;
+  string assignment_id = 2;
+  string assignment_name = 3;
+  string student_id = 4;
+  string course_id = 5;
+  int32 grade = 6;
+}

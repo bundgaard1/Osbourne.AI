@@ -133,9 +133,9 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 #### **1. Database & Domain Event Setup**
 
-* [ ] **Domain Events Definition:** Create a shared struct/proto for events (e.g. `StudentCreatedEvent`, `EnrollmentCreatedEvent`).
-* [ ] **RabbitMQ Producer Wrapper:** Build a reusable `publisher.go` in your service, which handles the connection, channels and reconnection to RabbitMQ.
-* [ ] **JSON/Protobuf Serialization:** Convert your domain event to JSON or Protobuf before it is published on the exchange.
+* [x] **Domain Events Definition:** Create a shared struct/proto for events (e.g. `StudentCreatedEvent`, `EnrollmentCreatedEvent`).
+* [x] **RabbitMQ Producer Wrapper:** Build a reusable `publisher.go` in your service, which handles the connection, channels and reconnection to RabbitMQ.
+* [x] **JSON/Protobuf Serialization:** Convert your domain event to JSON or Protobuf before it is published on the exchange.
 
 #### **2. Service Layer Integration**
 
@@ -144,14 +144,43 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 #### **3. Server & Consumer Setup**
 
-* [ ] **Notification Consumer Setup:** In `notification-service`, listen at runtime on the RabbitMQ queue `notification-queue` bound to the relevant routing keys (`*.created`, `*.published`).
-* [ ] **Consumer Handler:** Create a new notification in the Notification DB when a message is received.
+* [x] **Notification Consumer Setup:** In `notification-service`, listen at runtime on the RabbitMQ queue `notification-queue` bound to the relevant routing keys (`*.created`, `*.published`).
+* [x] **Consumer Handler:** Create a new notification in the Notification DB when a message is received.
 
 #### **4. Frontend Integration & Test**
 
 * [ ] **UI Trigger:** Create a new student or enroll in a course via the Frontend.
 * [ ] **RabbitMQ Dashboard Check:** Check http://localhost:15672 and verify that the message count increases under the `Publish` rate on the queue.
 * [ ] **Notification Badge in Frontend:** Open the notifications page in the frontend and verify that the newly created notification is shown to the user.
+
+#### **5. Event Catalog (Publishing Points → Consumer Responses)**
+
+Shared conventions for every event:
+
+* **Exchange:** `university.events` — `topic`, durable, declared by both publisher and consumer (idempotent).
+* **Envelope:** every message is an `EventEnvelope{ id, type, timestamp, payload }`; `payload` is the binary protobuf of the domain event (see `proto/events/events.proto`).
+* **Delivery:** publish with `WithPublishOptionsPersistentDelivery` + `WithPublishOptionsExchange("university.events")` (rare bug: without the exchange option go-rabbitmq publishes to the default exchange and the message is silently dropped).
+* **Queue:** durable `notification_service_queue`, currently bound to `student.*`, `course.*` and `grade.*` in `notification-service/internal/consumer/notification.go`; each new event type must add its own binding.
+* **Timeout/space:** messages survive consumer downtime — a slow/restarting consumer drains the queue on startup.
+
+Supported events:
+
+1. **`student.created`** — *status: ✅ implemented end-to-end*
+   - `CreateProfile` in profile-service, right after the student is persisted (publish failure logged, not rolled back). Requires the `CreateProfile` gRPC RPC (`CreateProfileRequest{ user_id, email, full_name, role }`).
+   - Message: `StudentCreatedEvent{ student_id, email, full_name }`.
+   - Consumer response (notification-service): `CreateNotification(student_id, "Welcome to Osbourne!", "Hello {full_name}, welcome to Osbourne!...")` — welcome notification.
+
+2. **`course.enrolled`** — *status: ✅ implemented end-to-end*
+   - `Service.EnrollStudent` in course-catalogue-service, after `CreateEnrollment` commits (publish failure is logged, not rolled back).
+   - Message: `CourseEnrolledEvent{ student_id, course_id, course_code, course_name }`.
+   - Consumer response (notification-service): `CreateNotification(student_id, "Enrolled in Course: {course_code}", "You have been enrolled in the course: {course_name}.")`.
+
+3. **`grade.published`** — *status: ✅ implemented end-to-end*
+   - `GradeSubmission` in assignment-service, right after the grade is persisted (publish failure is logged, not rolled back).
+   - Message: `GradePublishedEvent{ submission_id, assignment_id, student_id, course_id, grade, feedback }` (added to `events.proto`).
+   - Consumer response (notification-service): `CreateNotification(student_id, "Grade published", "You received {grade} in course {course_id}.")`.
+
+> Note: `course.enrolled` already worked when the assignment was first planned as `EnrollmentCreatedEvent`; the event was renamed to match the actual consumer implementation.
 
 ---
 
