@@ -8,9 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
 	coursecatalogue "osbourne.local/course-catalogue-service/gen/course-catalogue"
 	"osbourne.local/course-catalogue-service/internal/database"
+	"osbourne.local/course-catalogue-service/internal/publisher"
 	"osbourne.local/course-catalogue-service/internal/repository"
 	"osbourne.local/course-catalogue-service/internal/server"
 	"osbourne.local/course-catalogue-service/internal/service"
@@ -40,7 +42,25 @@ func main() {
 	database.SeedData(db)
 
 	coursecatalogueRepo := repository.NewGORMCourseCatalogueRepository(db)
-	coursecatalogueSvc := service.NewCourseService(coursecatalogueRepo)
+
+	// RabbitMQ connection for publishing domain events (course.enrolled).
+	amqpURL := os.Getenv("RABBITMQ_URL")
+	if amqpURL == "" {
+		amqpURL = "amqp://guest:guest@rabbitmq:5672/"
+	}
+	conn, err := rabbitmq.NewConn(amqpURL)
+	if err != nil {
+		log.Fatalf("Error creating RabbitMQ connection: %v", err)
+	}
+	defer conn.Close()
+
+	pub, err := publisher.New(conn)
+	if err != nil {
+		log.Fatalf("Error creating RabbitMQ publisher: %v", err)
+	}
+	defer pub.Close()
+
+	coursecatalogueSvc := service.NewCourseService(coursecatalogueRepo, pub)
 	coursecatalogueGrpcServer := server.NewCourseServer(coursecatalogueSvc)
 
 	grpcServer := grpc.NewServer()

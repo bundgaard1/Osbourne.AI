@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/wagslane/go-rabbitmq"
@@ -23,10 +24,14 @@ func NewNotificationConsumer(conn *rabbitmq.Conn, svc *service.NotificationServi
 	consumer, err := rabbitmq.NewConsumer(
 		conn,
 		"notification_service_queue",
+		rabbitmq.WithConsumerOptionsQueueDurable,
 		rabbitmq.WithConsumerOptionsExchangeName("university.events"),
 		rabbitmq.WithConsumerOptionsExchangeKind("topic"),
-		rabbitmq.WithConsumerOptionsRoutingKey("student.*"),
 		rabbitmq.WithConsumerOptionsExchangeDurable,
+		rabbitmq.WithConsumerOptionsExchangeDeclare,
+		rabbitmq.WithConsumerOptionsRoutingKey("student.*"),
+		rabbitmq.WithConsumerOptionsRoutingKey("course.*"),
+		rabbitmq.WithConsumerOptionsConcurrency(4),
 	)
 
 	if err != nil {
@@ -59,6 +64,8 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 		log.Printf("[CONSUMER] Invalid EventEnvelope format: %v", err)
 		return rabbitmq.NackDiscard
 	}
+
+	fmt.Printf("[CONSUMER] Received event: %s", envelope.Type)
 
 	switch envelope.Type {
 	case "student.created":

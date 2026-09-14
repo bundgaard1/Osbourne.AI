@@ -39,16 +39,6 @@ func SeedData(db *gorm.DB) {
 		return // Data already exists
 	}
 
-	notification := domain.Notification{
-		ID:        "1",
-		UserID:    "12345",
-		Title:     "New grade received",
-		Message:   "You received a 12 in INFS-605, link takes you to the root",
-		IsRead:    false,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
 	notification2 := domain.Notification{
 		ID:        "2",
 		UserID:    "12345",
@@ -59,6 +49,5 @@ func SeedData(db *gorm.DB) {
 		UpdatedAt: time.Now().Add(-24 * time.Hour),
 	}
 
-	db.Create(&notification)
 	db.Create(&notification2)
 }

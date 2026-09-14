@@ -8,3 +8,7 @@ type CourseCatalogueRepository interface {
 	CreateEnrollment(ctx context.Context, enrollment *Enrollment) error
 	GetEnrolledCoursesByUserID(ctx context.Context, userID string) ([]*Course, error)
 }
+
+type EventPublisher interface {
+	PublishCourseEnrolled(ctx context.Context, studentID, courseID, courseCode, courseName string) error
+}

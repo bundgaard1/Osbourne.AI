@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,11 +11,12 @@ import (
 )
 
 type CourseService struct {
-	repo domain.CourseCatalogueRepository
+	repo   domain.CourseCatalogueRepository
+	events domain.EventPublisher
 }
 
-func NewCourseService(repo domain.CourseCatalogueRepository) *CourseService {
-	return &CourseService{repo: repo}
+func NewCourseService(repo domain.CourseCatalogueRepository, events domain.EventPublisher) *CourseService {
+	return &CourseService{repo: repo, events: events}
 }
 
 func (s *CourseService) GetCourse(ctx context.Context, courseID string) (*domain.Course, error) {
@@ -45,7 +47,23 @@ func (s *CourseService) EnrollStudent(ctx context.Context, courseID string, stud
 		EnrolledAt: time.Now(),
 	}
 
-	return s.repo.CreateEnrollment(ctx, e)
+	err = s.repo.CreateEnrollment(ctx, e)
+	if err != nil {
+		return err
+	}
+
+	// Fire the domain event AFTER the enrollment is safely persisted. A
+	// publish failure must not roll back a successful enrollment, so it is
+	// logged and swallowed here.
+	if s.events != nil {
+		if course, gErr := s.repo.GetCourse(ctx, courseID); gErr == nil && course != nil {
+			if pubErr := s.events.PublishCourseEnrolled(ctx, studentID, course.ID, course.Code, course.Title); pubErr != nil {
+				log.Printf("Failed to publish course.enrolled event: %v", pubErr)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *CourseService) GetEnrolledCoursesByUserID(ctx context.Context, userID string) ([]*domain.Course, error) {

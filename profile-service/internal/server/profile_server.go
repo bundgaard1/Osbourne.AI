@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"log"
 
 	"osbourne.local/profile-service/gen/profile"
 	"osbourne.local/profile-service/internal/domain"
@@ -21,8 +20,6 @@ func NewProfileServer(profileSvc *service.ProfileService) *ProfileServer {
 }
 
 func (s *ProfileServer) GetUserProfile(ctx context.Context, req *profile.ProfileRequest) (*profile.ProfileResponse, error) {
-	log.Printf("Received gRPC request for profile_id: %s", req.GetUserId())
-
 	p, err := s.profileSvc.GetProfile(ctx, req.GetUserId())
 	if err != nil {
 		return nil, err
