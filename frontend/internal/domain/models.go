@@ -3,9 +3,20 @@ package domain
 import "time"
 
 type User struct {
-	ID   string
-	Name string
-	Role string
+	ID    string
+	Name  string
+	Role  string
+	Email string
+	Token string
+}
+
+type Profile struct {
+	ID           string
+	Name         string
+	Birthday     *time.Time
+	Phone        string
+	Bio          string
+	StudyProgram string
 }
 
 type Notification struct {

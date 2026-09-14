@@ -139,7 +139,7 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 #### **2. Service Layer Integration**
 
-* [x] **Publish on DB mutation:** Call `publisher.Publish("student.created", payload)` right after a successful SQL transaction (e.g. in `CreateProfile`).
+* [x] **Publish on DB mutation:** Call `publisher.Publish("account.created", payload)` right after accounts are seeded (publish failure logged, not rolled back).
 * [x] **Error Handling / Fallback:** Make sure to log a clear error if the DB change succeeded but the RabbitMQ call fails (or implement the Outbox pattern, if you want to be extra thorough).
 
 #### **3. Server & Consumer Setup**
@@ -160,15 +160,16 @@ Shared conventions for every event:
 * **Exchange:** `university.events` — `topic`, durable, declared by both publisher and consumer (idempotent).
 * **Envelope:** every message is an `EventEnvelope{ id, type, timestamp, payload }`; `payload` is the binary protobuf of the domain event (see `proto/events/events.proto`).
 * **Delivery:** publish with `WithPublishOptionsPersistentDelivery` + `WithPublishOptionsExchange("university.events")` (rare bug: without the exchange option go-rabbitmq publishes to the default exchange and the message is silently dropped).
-* **Queue:** durable `notification_service_queue`, currently bound to `student.*`, `course.*` and `grade.*` in `notification-service/internal/consumer/notification.go`; each new event type must add its own binding.
+* **Queue:** durable `notification_service_queue`, currently bound to `account.*`, `course.*` and `grade.*` in `notification-service/internal/consumer/notification.go`; durable `profile_service_queue` bound to `account.created` in `profile-service/internal/consumer/profile_consumer.go`; each new event type must add its own binding.
 * **Timeout/space:** messages survive consumer downtime — a slow/restarting consumer drains the queue on startup.
 
 Supported events:
 
-1. **`student.created`** — *status: ✅ implemented end-to-end*
-   - `CreateProfile` in profile-service, right after the student is persisted (publish failure logged, not rolled back). Requires the `CreateProfile` gRPC RPC (`CreateProfileRequest{ user_id, email, full_name, role }`).
-   - Message: `StudentCreatedEvent{ student_id, email, full_name }`.
-   - Consumer response (notification-service): `CreateNotification(student_id, "Welcome to Osbourne!", "Hello {full_name}, welcome to Osbourne!...")` — welcome notification.
+1. **`account.created`** — *status: ✅ implemented end-to-end*
+   - `auth-service` (`cmd/main.go`) right after demo accounts are seeded on an empty auth DB (publish failure is logged, not rolled back). Replaced the legacy `student.created`, which the old `CreateProfile` flow emitted.
+   - Message: `AccountCreatedEvent{ account_id, email, role, full_name }`.
+   - Consumer response (profile-service, `profile_service_queue`): creates an idempotent `UserProfile{ id, name }` row via `CreateProfileFromEvent` (custom master-data fields start empty).
+   - Consumer response (notification-service): `CreateNotification(account_id, "Welcome to Osbourne!", "Hello {full_name}, welcome to Osbourne!...")` — welcome notification.
 
 2. **`course.enrolled`** — *status: ✅ implemented end-to-end*
    - `Service.EnrollStudent` in course-catalogue-service, after `CreateEnrollment` commits (publish failure is logged, not rolled back).
@@ -184,30 +185,30 @@ Supported events:
 
 ---
 
-### [ ] Step 3.5: Authentication Service (Service #6 - Security Boundary)
+### [x] Step 3.5: Authentication Service (Service #6 - Security Boundary)
 
 #### **1. Database Setup**
 
-* [ ] **Auth Schema / Migrations:** Create the `user_accounts` table with `id`, `email`, `password_hash`, and `role` (`student`, `teacher`, `admin`).
-* [ ] **Crypto Setup:** Implement `bcrypt` for secure hashing and comparison of passwords.
+* [x] **Auth Schema / Migrations:** Create the `user_accounts` table with `id`, `email`, `password_hash`, and `role` (`student`, `teacher`, `admin`).
+* [x] **Crypto Setup:** Implement `bcrypt` for secure hashing and comparison of passwords (+ seed two demo accounts: `student@osbourne.local`/`student123` id `12345`, `teacher@osbourne.local`/`teacher123` id `99999`).
 
 #### **2. Service & JWT Implementation**
 
-* [ ] **JWT Generator:** Create a helper function to issue and sign JWT tokens (containing `user_id`, `email`, `role` and `exp`).
-* [ ] **Auth Service Methods:** Implement `Register` and `Login` methods in the service layer.
+* [x] **JWT Generator:** Shared `auth-common` module with `SignJWT(secret, user_id, email, role, exp)` issuing tokens containing `user_id`, `email`, `role` and `exp`.
+* [x] **Auth Service Methods:** Implement `Login` and `ValidateToken` methods in the service layer (no public registration — accounts are seeded).
 
 #### **3. gRPC Server & Gateway Interceptors**
 
-* [ ] **Proto Specification:** Define `auth.proto` with `Login` and `ValidateToken` RPCs.
-* [ ] **gRPC Auth Interceptor:** Create a gRPC Interceptor across microservices that reads the JWT token from the gRPC Context Metadata (`authorization: bearer <token>`) and verifies the signature.
+* [x] **Proto Specification:** Define `auth.proto` with `Login` and `ValidateToken` RPCs.
+* [x] **gRPC Auth Interceptor:** `auth-common.AuthInterceptor(secret)` reads the JWT from gRPC context Metadata (`authorization: bearer <token>`) and verifies the signature; wired into profile/notification/course-catalogue/course-content/assignment and enforced by the frontend for outgoing calls.
 
 #### **4. Frontend / BFF Integration & Test**
 
-* [ ] **Session / Cookie Handling:** When the user logs in on `/login` in the Go Frontend, `auth-service` is called. On success, the JWT token is stored in a secure, `HttpOnly` cookie in the browser.
-* [ ] **BFF Middleware (`h.Authenticate`):** Update your `Authenticate` middleware in the Go Frontend to read the cookie and attach the JWT token as gRPC Metadata on *all* outgoing microservice calls.
-* [ ] **Test Scenarios:**
-* [ ] Test access to `/dashboard` without a login cookie $\rightarrow$ Redirected to `/login` (or returns HTTP `401`).
-* [ ] Test access with a valid login $\rightarrow$ The gRPC calls receive `user_id` directly from gRPC metadata and return the correct user's data (`200 OK`).
+* [x] **Session / Cookie Handling:** Login page (`/login`, role picker + password) calls `auth-service`; on success the JWT is stored in the `HttpOnly` `osbourne_session` cookie.
+* [x] **BFF Middleware (`h.Authenticate`):** Middleware reads the cookie, parses the JWT, fetches the profile for the display name, and attaches the token as gRPC Metadata on *all* outgoing microservice calls.
+* [x] **Test Scenarios:**
+* [x] Test access to protected pages without a login cookie $\rightarrow$ Redirected to `/login`.
+* [x] Test access with a valid login $\rightarrow$ The gRPC calls receive the JWT via metadata and return the correct user's data (`200 OK`).
 
 ---
 
@@ -273,12 +274,12 @@ hey -n 200 -c 20 http://localhost/api/v1/courses
 
 - [x] **Inverted ID generation in CreateModule** — `course-content-service/internal/service/module-service.go:25` generates a UUID only when `module.ID != ""`, which is the opposite of what you want. Should be `== ""`.
 - [x] **DeleteModule does nothing** — `course-content-service/internal/service/module-service.go:67-77` validates the module exists but never calls `s.repo.DeleteModule()`. Deletions silently no-op.
-- [ ] **No authentication** — `frontend/internal/handler/handler.go:59-61` reads user identity from `?id=` query param with a hardcoded fallback `"12345"`. Anyone can impersonate any user. Auth-service is a skeleton with no implementation.
+- [x] **No authentication** — fixed: `frontend/internal/handler/handler.go` now runs a `Authenticate` middleware that reads the JWT from the `osbourne_session` cookie (no more `?id=` impersonation); auth-service issues the token and a shared `auth-common` gRPC interceptor enforces it on all five backend services.
 - [ ] **All gRPC traffic is unencrypted** — All 5 frontend gRPC clients use `insecure.NewCredentials()`. No TLS, no mTLS.
 
 ### High Priority Issues
 
-- [ ] **RabbitMQ routing key mismatch** — Notification consumer subscribes to `"student.*"` but also handles `"course.enrolled"` events. With a topic exchange, `course.enrolled` messages will never reach this consumer. Dead code at the network level.
+- [x] **RabbitMQ routing key mismatch** — fixed: notification consumer now binds `account.*`, `course.*` and `grade.*` (the legacy `student.*` binding was replaced), and profile-service adds its own `account.created` consumer.
 - [ ] **Hardcoded `guest:guest` RabbitMQ credentials** in `docker-compose.yml:40-41` with the management dashboard (port 15672) exposed to the host.
 - [x] **Debug print left in** — `course-catalogue-service/cmd/main.go:21` has `fmt.Println("hej")`.
 - [ ] **Panic in repository constructor** — `course-content-service/internal/repository/clover-content.go:23` calls `panic()` instead of returning an error.

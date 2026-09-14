@@ -18,6 +18,15 @@ plugins:
     out: ../profile-service/gen
     opt: paths=source_relative
 
+  # For Auth Service
+  - plugin: go
+    out: ../auth-service/gen
+    opt: paths=source_relative
+
+  - plugin: go-grpc
+    out: ../auth-service/gen
+    opt: paths=source_relative
+
   # For Notification Service
   - plugin: go
     out: ../notification-service/gen

@@ -143,3 +143,72 @@ body {
 		transform: translateY(0);
 	}
 }
+
+.login-shell {
+	max-width: 360px;
+	margin: 80px auto;
+	padding: 24px;
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	text-align: center;
+}
+
+.login-shell h2 {
+	margin: 0 0 8px;
+}
+
+.login-shell .role-picker {
+	display: flex;
+	justify-content: center;
+	gap: 12px;
+	margin: 16px 0;
+}
+
+.role-btn {
+	padding: 12px 24px;
+	border: 2px solid #ddd;
+	border-radius: 8px;
+	background: #fff;
+	font-size: 16px;
+	cursor: pointer;
+}
+
+.role-btn.active {
+	border-color: #2e7d32;
+	background: #e8f5e9;
+}
+
+.login-shell form {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	text-align: left;
+}
+
+.login-shell input {
+	padding: 10px;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	font-size: 14px;
+}
+
+.login-shell button[type="submit"] {
+	padding: 10px;
+	border: none;
+	border-radius: 6px;
+	background: #2e7d32;
+	color: #fff;
+	font-size: 15px;
+	cursor: pointer;
+}
+
+.login-error {
+	color: #c62828;
+}
+
+.login-hint {
+	color: #777;
+	font-size: 13px;
+	margin-top: 16px;
+}

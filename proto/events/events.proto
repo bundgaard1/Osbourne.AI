@@ -9,16 +9,17 @@ option go_package = "osbourne.local/proto/gen/events/events;events";
 // Generic shared event-envelope for RabbitMQ
 message EventEnvelope {
   string id = 1;
-  string type = 2; // e.g. "student.created"
+  string type = 2; // e.g. "account.created"
   google.protobuf.Timestamp timestamp = 3;
   bytes payload = 4; // The binary Protobuf event itself
 }
 
 // Domain-specific events
-message StudentCreatedEvent {
-  string student_id = 1;
+message AccountCreatedEvent {
+  string account_id = 1;
   string email = 2;
-  string full_name = 3;
+  string role = 3;
+  string full_name = 4;
 }
 
 message CourseEnrolledEvent {

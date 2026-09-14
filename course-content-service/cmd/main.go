@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"osbourne.local/auth-common"
 	coursecontent "osbourne.local/course-content-service/gen/course-content"
 	"osbourne.local/course-content-service/internal/database"
 	"osbourne.local/course-content-service/internal/repository"
@@ -46,7 +47,14 @@ func main() {
 	courseContentSvc := service.NewModuleService(courseContentRepo)
 	courseContentGrpcServer := server.NewContentServer(courseContentSvc)
 
-	grpcServer := grpc.NewServer()
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "dev-secret-change-me"
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+	)
 
 	coursecontent.RegisterCourseContentServiceServer(
 		grpcServer,

@@ -22,6 +22,7 @@ import (
 	"osbourne.local/assignment-service/internal/seed"
 	"osbourne.local/assignment-service/internal/server"
 	"osbourne.local/assignment-service/internal/service"
+	"osbourne.local/auth-common"
 )
 
 type Config struct {
@@ -29,6 +30,7 @@ type Config struct {
 	DBPath    string
 	UploadDir string
 	SeedData  bool
+	JWTSecret string
 }
 
 func loadConfig() Config {
@@ -47,11 +49,17 @@ func loadConfig() Config {
 		uploadDir = "./data/uploads"
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "dev-secret-change-me"
+	}
+
 	return Config{
 		GRPCPort:  port,
 		DBPath:    dbPath,
 		UploadDir: uploadDir,
 		SeedData:  os.Getenv("SEED_DATA") == "true",
+		JWTSecret: jwtSecret,
 	}
 }
 
@@ -123,7 +131,9 @@ func main() {
 	appService := service.NewAssignmentService(assignmentRepo, submissionRepo, fileStore, evPublisher)
 	grpcServerImpl := server.NewAssignmentServer(appService)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(authcommon.AuthInterceptor(cfg.JWTSecret)),
+	)
 	assignment.RegisterAssignmentServiceServer(grpcServer, grpcServerImpl)
 
 	// 5. Server Listener & Graceful Shutdown

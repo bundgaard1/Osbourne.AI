@@ -29,7 +29,7 @@ func NewNotificationConsumer(conn *rabbitmq.Conn, svc *service.NotificationServi
 		rabbitmq.WithConsumerOptionsExchangeKind("topic"),
 		rabbitmq.WithConsumerOptionsExchangeDurable,
 		rabbitmq.WithConsumerOptionsExchangeDeclare,
-		rabbitmq.WithConsumerOptionsRoutingKey("student.*"),
+		rabbitmq.WithConsumerOptionsRoutingKey("account.created"),
 		rabbitmq.WithConsumerOptionsRoutingKey("course.*"),
 		rabbitmq.WithConsumerOptionsRoutingKey("grade.*"),
 		rabbitmq.WithConsumerOptionsConcurrency(4),
@@ -69,16 +69,16 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 	fmt.Printf("[CONSUMER] Received event: %s", envelope.Type)
 
 	switch envelope.Type {
-	case "student.created":
-		var event events.StudentCreatedEvent
+	case "account.created":
+		var event events.AccountCreatedEvent
 		if err := proto.Unmarshal(envelope.Payload, &event); err != nil {
-			log.Printf("[CONSUMER] Error on unmarshal of StudentCreatedEvent: %v", err)
+			log.Printf("[CONSUMER] Error on unmarshal of AccountCreatedEvent: %v", err)
 			return rabbitmq.NackDiscard
 		}
 
 		// Call the business logic
 		err := c.svc.CreateNotification(ctx,
-			event.GetStudentId(),
+			event.GetAccountId(),
 			"Welcome to Osbourne!",
 			"Hello "+event.GetFullName()+", welcome to Osbourne! We are excited to have you on board.")
 

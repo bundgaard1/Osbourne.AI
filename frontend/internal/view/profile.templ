@@ -1,17 +1,27 @@
 package view
 
+import (
+	"osbourne.local/frontend/internal/domain"
+)
+
 type ProfilePageData struct {
 	PageData
+	Profile domain.Profile
 }
 
 templ ProfilePage(data ProfilePageData) {
 	@Base(data.User) {
 		<section>
 			<h1>Your Profile</h1>
-			<p>Welcome to your profile page.</p>
-			<p>ID: { data.User.ID }</p>
-			<p>Name: { data.User.Name }</p>
+			<p>Name: { data.Profile.Name }</p>
+			<p>Email: { data.User.Email }</p>
 			<p>Role: { data.User.Role }</p>
+			if data.Profile.Birthday != nil {
+				<p>Birthday: { data.Profile.Birthday.Format("2006-01-02") }</p>
+			}
+			<p>Phone: { data.Profile.Phone }</p>
+			<p>Study program: { data.Profile.StudyProgram }</p>
+			<p>Bio: { data.Profile.Bio }</p>
 		</section>
 	}
 }

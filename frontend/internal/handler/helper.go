@@ -6,8 +6,28 @@ import (
 
 	"osbourne.local/frontend/gen/assignment"
 	"osbourne.local/frontend/gen/notification"
+	"osbourne.local/frontend/gen/profile"
 	"osbourne.local/frontend/internal/domain"
 )
+
+func toDomainProfile(p *profile.ProfileResponse) domain.Profile {
+	if p == nil {
+		return domain.Profile{}
+	}
+
+	prof := domain.Profile{
+		ID:           p.GetId(),
+		Name:         p.GetName(),
+		Phone:        p.GetPhone(),
+		Bio:          p.GetBio(),
+		StudyProgram: p.GetStudyProgram(),
+	}
+	if p.GetBirthday() != nil {
+		birthday := p.GetBirthday().AsTime()
+		prof.Birthday = &birthday
+	}
+	return prof
+}
 
 func toDomainCourse(c *coursecatalogue.Course) domain.Course {
 	if c == nil {

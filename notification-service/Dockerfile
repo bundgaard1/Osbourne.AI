@@ -1,18 +1,21 @@
 # ==========================================
-# STAGE 1: Build phase (Service-Isolated Context)
+# STAGE 1: Build phase (Repository-Root Context)
 # ==========================================
 FROM golang:1.26-alpine AS builder
 
 RUN apk add --no-cache ca-certificates git 
 
-WORKDIR /app
+WORKDIR /src
 
-COPY go.mod go.sum ./
+# The notification-service depends on the sibling auth-common module, so the
+# build context must be the repository root (set in docker-compose.yml).
+COPY auth-common/ auth-common/
+COPY notification-service/ notification-service/
+
+WORKDIR /src/notification-service
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
-
-COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

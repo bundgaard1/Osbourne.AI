@@ -42,7 +42,6 @@ func TestGORMProfileRepository_GetByID(t *testing.T) {
 	testStudent := domain.UserProfile{
 		ID:   "student-123",
 		Name: "student",
-		Role: domain.RoleStudent,
 	}
 
 	if err := db.Create(&testStudent).Error; err != nil {

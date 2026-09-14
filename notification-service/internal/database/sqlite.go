@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"time"
 
 	// Use the official GORM dialect adapter from glebarez:
 
@@ -30,24 +29,4 @@ func NewGORMDB(dbPath string) (*gorm.DB, error) {
 	}
 
 	return db, nil
-}
-
-func SeedData(db *gorm.DB) {
-	var count int64
-	db.Model(&domain.Notification{}).Count(&count)
-	if count > 0 {
-		return // Data already exists
-	}
-
-	notification2 := domain.Notification{
-		ID:        "2",
-		UserID:    "12345",
-		Title:     "Welcome to the platform",
-		Message:   "Thank you for signing up for our platform!",
-		IsRead:    true,
-		CreatedAt: time.Now().Add(-24 * time.Hour),
-		UpdatedAt: time.Now().Add(-24 * time.Hour),
-	}
-
-	db.Create(&notification2)
 }

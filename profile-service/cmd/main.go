@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
@@ -10,9 +11,11 @@ import (
 
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
+
+	"osbourne.local/auth-common"
 	"osbourne.local/profile-service/gen/profile"
+	"osbourne.local/profile-service/internal/consumer"
 	"osbourne.local/profile-service/internal/database"
-	"osbourne.local/profile-service/internal/publisher"
 	"osbourne.local/profile-service/internal/repository"
 	"osbourne.local/profile-service/internal/server"
 	"osbourne.local/profile-service/internal/service"
@@ -39,11 +42,17 @@ func main() {
 		log.Fatalf("Database error: %v", err)
 	}
 
-	database.SeedData(db)
-
 	profileRepo := repository.NewGORMProfileRepository(db)
+	profileSvc := service.NewProfileService(profileRepo)
+	profileGrpcServer := server.NewProfileServer(profileSvc)
 
-	// RabbitMQ connection for publishing domain events (student.created).
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "dev-secret-change-me"
+	}
+
+	// RabbitMQ consumer: profiles are created reactively from account.created
+	// events, so subscribe before serving gRPC.
 	amqpURL := os.Getenv("RABBITMQ_URL")
 	if amqpURL == "" {
 		amqpURL = "amqp://guest:guest@rabbitmq:5672/"
@@ -54,16 +63,21 @@ func main() {
 	}
 	defer conn.Close()
 
-	pub, err := publisher.New(conn)
+	profileConsumer, err := consumer.NewProfileConsumer(conn, profileSvc)
 	if err != nil {
-		log.Fatalf("Error creating RabbitMQ publisher: %v", err)
+		log.Fatalf("Error creating profile consumer: %v", err)
 	}
-	defer pub.Close()
+	defer profileConsumer.Close()
 
-	profileSvc := service.NewProfileService(profileRepo, pub)
-	profileGrpcServer := server.NewProfileServer(profileSvc)
+	go func() {
+		if err := profileConsumer.Start(context.Background()); err != nil {
+			log.Printf("Profile consumer stopped: %v", err)
+		}
+	}()
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+	)
 	profile.RegisterProfileServiceServer(grpcServer, profileGrpcServer)
 
 	go func() {
@@ -73,7 +87,6 @@ func main() {
 		}
 	}()
 
-	// 4. Graceful Shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop

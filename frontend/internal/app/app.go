@@ -13,11 +13,13 @@ import (
 
 type Config struct {
 	Port                       string
+	AuthServiceAddr            string
 	ProfileServiceAddr         string
 	NotificationServiceAddr    string
 	CourseCatalogueServiceAddr string
 	CourseContentServiceAddr   string
 	AssignmentServiceAddr      string
+	JWTSecret                  string
 }
 
 type App struct {
@@ -28,6 +30,7 @@ type App struct {
 
 func NewApp(cfg Config) (*App, error) {
 	clients, err := grpcclient.Dial(
+		cfg.AuthServiceAddr,
 		cfg.ProfileServiceAddr,
 		cfg.NotificationServiceAddr,
 		cfg.CourseCatalogueServiceAddr,
@@ -38,7 +41,7 @@ func NewApp(cfg Config) (*App, error) {
 		return nil, err
 	}
 
-	h := handler.New(clients)
+	h := handler.New(clients, cfg.JWTSecret)
 	router := h.Routes(ui.Files)
 
 	return &App{

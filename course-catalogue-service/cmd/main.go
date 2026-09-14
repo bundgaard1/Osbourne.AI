@@ -10,6 +10,7 @@ import (
 
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
+	"osbourne.local/auth-common"
 	coursecatalogue "osbourne.local/course-catalogue-service/gen/course-catalogue"
 	"osbourne.local/course-catalogue-service/internal/database"
 	"osbourne.local/course-catalogue-service/internal/publisher"
@@ -63,7 +64,14 @@ func main() {
 	coursecatalogueSvc := service.NewCourseService(coursecatalogueRepo, pub)
 	coursecatalogueGrpcServer := server.NewCourseServer(coursecatalogueSvc)
 
-	grpcServer := grpc.NewServer()
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "dev-secret-change-me"
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+	)
 
 	coursecatalogue.RegisterCourseCatalogueServiceServer(
 		grpcServer,

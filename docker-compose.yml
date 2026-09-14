@@ -8,6 +8,7 @@ volumes:
   course-catalogue-data:
   course-content-data:
   assignment-data:
+  auth-data:
 
 services:
   api-gateway:
@@ -48,15 +49,35 @@ services:
       - osbourne-net
     restart: unless-stopped
 
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    container_name: osbourne-auth-service
+    environment:
+      - PORT=50056
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - DB_PATH=/app/data/auth.db
+      - JWT_SECRET=dev-secret-change-me
+    volumes:
+      - auth-data:/app/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - osbourne-net
+    restart: unless-stopped
+
   profile-service:
     build:
-      context: ./profile-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: profile-service/Dockerfile
     container_name: osbourne-profile-service
     environment:
       - PORT=50051
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/profiles.db
+      - JWT_SECRET=dev-secret-change-me
     volumes: 
       - profile-data:/app/data
     depends_on:
@@ -68,13 +89,14 @@ services:
 
   notification-service:
     build:
-      context: ./notification-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: notification-service/Dockerfile
     container_name: osbourne-notification-service
     environment:
       - PORT=50052
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - DB_PATH=/app/data/notification.db  
+      - DB_PATH=/app/data/notification.db
+      - JWT_SECRET=dev-secret-change-me
     volumes: 
       - notification-data:/app/data
     depends_on:
@@ -86,13 +108,14 @@ services:
 
   course-catalogue-service:
     build:
-      context: ./course-catalogue-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: course-catalogue-service/Dockerfile
     container_name: osbourne-course-catalogue-service
     environment:
       - PORT=50053
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - DB_PATH=/app/data/course-catalogue.db   
+      - DB_PATH=/app/data/course-catalogue.db
+      - JWT_SECRET=dev-secret-change-me
     volumes: 
       - course-catalogue-data:/app/data
     depends_on:
@@ -102,16 +125,16 @@ services:
       - osbourne-net
     restart: unless-stopped
 
-  
   course-content-service:
     build:
-      context: ./course-content-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: course-content-service/Dockerfile
     container_name: osbourne-course-content-service
     environment:
       - PORT=50054
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - NOSQL_PATH=/app/data
+      - JWT_SECRET=dev-secret-change-me
     volumes: 
       - course-content-data:/app/data
     depends_on:
@@ -123,8 +146,8 @@ services:
 
   assignment-service:
     build:
-      context: ./assignment-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: assignment-service/Dockerfile
     container_name: osbourne-assignment-service
     environment:
       - PORT=50055
@@ -132,6 +155,7 @@ services:
       - DB_PATH=/app/data/assignment.db
       - UPLOAD_DIR=/app/data/uploads
       - SEED_DATA=true
+      - JWT_SECRET=dev-secret-change-me
     volumes:
       - assignment-data:/app/data
     depends_on:
@@ -143,25 +167,26 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: osbourne-frontend
     ports:
       - "8080:8080"
     environment:
       - PORT=8080
+      - AUTH_SERVICE_ADDR=dns:///auth-service:50056
       - PROFILE_SERVICE_ADDR=dns:///profile-service:50051
       - NOTIFICATION_SERVICE_ADDR=dns:///notification-service:50052
       - COURSE_CATALOGUE_SERVICE_ADDR=dns:///course-catalogue-service:50053
       - COURSE_CONTENT_SERVICE_ADDR=dns:///course-content-service:50054
       - ASSIGNMENT_SERVICE_ADDR=dns:///assignment-service:50055
+      - JWT_SECRET=dev-secret-change-me
     depends_on:
       - profile-service
       - notification-service
       - course-catalogue-service
       - course-content-service
+      - auth-service
     networks:
       - osbourne-net
     restart: unless-stopped
-
-  

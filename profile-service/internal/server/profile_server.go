@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"osbourne.local/profile-service/gen/profile"
 	"osbourne.local/profile-service/internal/domain"
 	"osbourne.local/profile-service/internal/service"
@@ -24,30 +26,19 @@ func (s *ProfileServer) GetUserProfile(ctx context.Context, req *profile.Profile
 	if err != nil {
 		return nil, err
 	}
-	profileProto := toProtoProfile(p)
-
-	return profileProto, nil
-}
-
-func (s *ProfileServer) CreateProfile(ctx context.Context, req *profile.CreateProfileRequest) (*profile.CreateProfileResponse, error) {
-	p := &domain.UserProfile{
-		ID:    req.GetUserId(),
-		Name:  req.GetFullName(),
-		Email: req.GetEmail(),
-		Role:  domain.UserRole(req.GetRole()),
-	}
-
-	if err := s.profileSvc.CreateProfile(ctx, p); err != nil {
-		return nil, err
-	}
-
-	return &profile.CreateProfileResponse{Success: true}, nil
+	return toProtoProfile(p), nil
 }
 
 func toProtoProfile(p *domain.UserProfile) *profile.ProfileResponse {
-	return &profile.ProfileResponse{
-		Id:   p.ID,
-		Name: p.Name,
-		Role: string(p.Role),
+	resp := &profile.ProfileResponse{
+		Id:           p.ID,
+		Name:         p.Name,
+		Phone:        p.Phone,
+		Bio:          p.Bio,
+		StudyProgram: p.StudyProgram,
 	}
+	if p.Birthday != nil {
+		resp.Birthday = timestamppb.New(*p.Birthday)
+	}
+	return resp
 }

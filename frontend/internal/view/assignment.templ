@@ -1,6 +1,9 @@
 package view
 
-import "osbourne.local/frontend/internal/domain"
+import (
+	"osbourne.local/frontend/internal/domain"
+	"strings"
+)
 
 
 type AssignmentPageData struct {
@@ -58,24 +61,27 @@ m                    method: 'POST',
             <p><strong>Due Date:</strong> { data.Assignment.DueDate.Format("15:04:05 2006-01-02") }</p>
         </section>
 
-        <section>
-            <h2>Submit here</h2>
-            <form method="POST" action={"/api/assignments/" + data.Assignment.ID + "/submit"} enctype="multipart/form-data">
-                <input type="file" name="submission_file" required>
-                <button type="submit">Submit Assignment</button>
-            </form>
-        </section>
+        if strings.EqualFold(data.User.Role, "student") {
+            <section>
+                <h2>Submit here</h2>
+                <form method="POST" action={"/api/assignments/" + data.Assignment.ID + "/submit"} enctype="multipart/form-data">
+                    <input type="file" name="submission_file" required>
+                    <button type="submit">Submit Assignment</button>
+                </form>
+            </section>
+        }
 
-        <section>
-            <h2>All Submissions</h2>
-            <ul>
-                for _, submission := range data.Submissions {
-                    <li>
-                        @SubmissionCard(submission)
-                    </li>
-                }
-            </ul>
-
-        </section>
+        if strings.EqualFold(data.User.Role, "teacher") {
+            <section>
+                <h2>All Submissions</h2>
+                <ul>
+                    for _, submission := range data.Submissions {
+                        <li>
+                            @SubmissionCard(submission)
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
     }
 }

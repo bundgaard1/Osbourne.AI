@@ -1,0 +1,53 @@
+package view
+
+templ LoginPage(data PageData, errorMsg string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<title>Sign in - Osborne.AI Portal</title>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+		</head>
+		<body>
+			<div class="login-shell">
+				<h2>Osborne.AI Portal</h2>
+				<p>Choose your role to sign in</p>
+
+				<div class="role-picker">
+					<button type="button" class="role-btn" onclick="selectRole(this, 'student')">Student</button>
+					<button type="button" class="role-btn" onclick="selectRole(this, 'teacher')">Teacher</button>
+				</div>
+
+				<form method="POST" action="/login">
+					<input type="hidden" name="role" id="role-input"/>
+					<label for="email-input">Email</label>
+					<input type="email" name="email" id="email-input" placeholder="student@osbourne.local" readonly/>
+					<label for="password-input">Password</label>
+					<input type="password" name="password" id="password-input" required autocomplete="current-password"/>
+					<button type="submit">Sign in</button>
+				</form>
+
+				if errorMsg != "" {
+					<p class="login-error">{ errorMsg }</p>
+				}
+
+				<p class="login-hint">Demo accounts: student123 / teacher123</p>
+			</div>
+
+			<script>
+				function selectRole(btn, role) {
+					var buttons = document.querySelectorAll('.role-btn');
+					for (var i = 0; i < buttons.length; i++) {
+						buttons[i].classList.remove('active');
+					}
+					btn.classList.add('active');
+
+					var emails = { student: 'student@osbourne.local', teacher: 'teacher@osbourne.local' };
+					document.getElementById('role-input').value = role;
+					document.getElementById('email-input').value = emails[role];
+					document.getElementById('password-input').focus();
+				}
+			</script>
+		</body>
+	</html>
+}

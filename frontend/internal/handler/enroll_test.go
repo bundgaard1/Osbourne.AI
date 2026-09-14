@@ -6,15 +6,19 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"osbourne.local/auth-common"
+	"osbourne.local/frontend/gen/assignment"
 	coursecatalogue "osbourne.local/frontend/gen/course-catalogue"
 	coursecontent "osbourne.local/frontend/gen/course-content"
 	grpcclient "osbourne.local/frontend/internal/clients/grpc"
@@ -79,8 +83,23 @@ func (f *fakeContentService) ListModulesByCourseID(_ context.Context, req *cours
 	}}, nil
 }
 
+type fakeAssignmentService struct {
+	assignment.UnimplementedAssignmentServiceServer
+}
+
+func (f *fakeAssignmentService) GetCourseAssignments(_ context.Context, _ *assignment.GetCourseAssignmentsRequest) (*assignment.GetCourseAssignmentsResponse, error) {
+	return &assignment.GetCourseAssignmentsResponse{}, nil
+}
+
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
+
+	const jwtSecret = "dev-secret-change-me"
+
+	token, err := authcommon.SignJWT(jwtSecret, "12345", "student@osbourne.local", "student", time.Hour)
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -100,24 +119,48 @@ func newTestServer(t *testing.T) *httptest.Server {
 	go contentSrv.Serve(contentLis)
 	t.Cleanup(contentSrv.Stop)
 
-	clients, err := grpcclient.Dial("unused", "unused", lis.Addr().String(), contentLis.Addr().String(), "unused")
+	assignmentLis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("assignment listen: %v", err)
+	}
+	assignmentSrv := grpc.NewServer()
+	assignment.RegisterAssignmentServiceServer(assignmentSrv, &fakeAssignmentService{})
+	go assignmentSrv.Serve(assignmentLis)
+	t.Cleanup(assignmentSrv.Stop)
+
+	clients, err := grpcclient.Dial("unused", "unused", "unused", lis.Addr().String(), contentLis.Addr().String(), assignmentLis.Addr().String())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
 	t.Cleanup(clients.Close)
 
-	h := New(clients)
+	h := New(clients, jwtSecret)
 	router := h.Routes(ui.Files)
 
 	ts := httptest.NewServer(router)
 	t.Cleanup(ts.Close)
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookie jar: %v", err)
+	}
+	u, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	jar.SetCookies(u, []*http.Cookie{{
+		Name:  sessionCookieName,
+		Value: token,
+	}})
+	ts.Client().Jar = jar
+
 	return ts
 }
 
 func TestCoursePageNotFound(t *testing.T) {
 	ts := newTestServer(t)
 
-	resp, err := http.Get(ts.URL + "/courses/nope")
+	resp, err := ts.Client().Get(ts.URL + "/courses/nope")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -154,7 +197,7 @@ func TestGRPCToHTTPStatus(t *testing.T) {
 func TestCoursePageParamRoute(t *testing.T) {
 	ts := newTestServer(t)
 
-	resp, err := http.Get(ts.URL + "/courses/c1")
+	resp, err := ts.Client().Get(ts.URL + "/courses/c1")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -182,7 +225,7 @@ func TestCoursePageParamRoute(t *testing.T) {
 func TestEnrollScriptsInCatalogPage(t *testing.T) {
 	ts := newTestServer(t)
 
-	resp, err := http.Get(ts.URL + "/course-catalog")
+	resp, err := ts.Client().Get(ts.URL + "/course-catalog")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -223,7 +266,7 @@ func TestHandleEnrollCourseRoutes(t *testing.T) {
 	ts := newTestServer(t)
 
 	form := url.Values{"course_id": {"c1"}}
-	resp, err := http.Post(ts.URL+"/api/courses/enroll", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
+	resp, err := ts.Client().Post(ts.URL+"/api/courses/enroll", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}

@@ -1,21 +1,29 @@
+# ==========================================
+# STAGE 1: Build phase (Repository-Root Context)
+# ==========================================
 FROM golang:1.26-alpine AS builder
 
 RUN apk add --no-cache ca-certificates git 
 
-WORKDIR /app
+WORKDIR /src
 
-COPY go.mod go.sum ./
+# The profile-service depends on the sibling auth-common module, so the build
+# context must be the repository root (set in docker-compose.yml).
+COPY auth-common/ auth-common/
+COPY profile-service/ profile-service/
+
+WORKDIR /src/profile-service
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
-
-COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /profile-service ./cmd/main.go
 
-
+# ==========================================
+# STAGE 2: Minimal Runtime phase
+# ==========================================
 FROM alpine:3.20
 
 RUN apk --no-cache add ca-certificates && \
@@ -25,6 +33,7 @@ WORKDIR /app
 
 COPY --from=builder /profile-service .
 
+# Specific file ownership instead of chown -R /app to keep image layers lean
 RUN mkdir -p /app/data && \
     chown -R appuser:appgroup /app
 

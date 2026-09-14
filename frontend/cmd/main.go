@@ -14,11 +14,13 @@ import (
 func main() {
 	cfg := app.Config{
 		Port:                       getEnv("PORT", "8080"),
+		AuthServiceAddr:            getEnv("AUTH_SERVICE_ADDR", "dns:///auth-service:50056"),
 		ProfileServiceAddr:         getEnv("PROFILE_SERVICE_ADDR", "dns:///profile-service:50051"),
 		NotificationServiceAddr:    getEnv("NOTIFICATION_SERVICE_ADDR", "dns:///notification-service:50052"),
 		CourseCatalogueServiceAddr: getEnv("COURSE_CATALOGUE_SERVICE_ADDR", "dns:///course-catalogue-service:50053"),
 		CourseContentServiceAddr:   getEnv("COURSE_CONTENT_SERVICE_ADDR", "dns:///course-content-service:50054"),
 		AssignmentServiceAddr:      getEnv("ASSIGNMENT_SERVICE_ADDR", "dns:///assignment-service:50055"),
+		JWTSecret:                  getEnv("JWT_SECRET", "dev-secret-change-me"),
 	}
 
 	application, err := app.NewApp(cfg)

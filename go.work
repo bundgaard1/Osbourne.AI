@@ -2,6 +2,8 @@ go 1.26.5
 
 use (
 	./assignment-service
+	./auth-common
+	./auth-service
 	./course-catalogue-service
 	./course-content-service
 	./frontend

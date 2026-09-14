@@ -11,6 +11,7 @@ import (
 
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
+	"osbourne.local/auth-common"
 	"osbourne.local/notification-service/gen/notification"
 	"osbourne.local/notification-service/internal/consumer"
 	"osbourne.local/notification-service/internal/database"
@@ -40,11 +41,14 @@ func main() {
 		log.Fatalf("Database error: %v", err)
 	}
 
-	database.SeedData(db)
-
 	notificationRepo := repository.NewGORMNotificationRepository(db)
 	notificationSvc := service.NewNotificationService(notificationRepo)
 	notificationGrpcServer := server.NewNotificationServer(notificationSvc)
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "dev-secret-change-me"
+	}
 
 	// Create RabbitMQ connection
 	amqpURL := os.Getenv("RABBITMQ_URL")
@@ -73,7 +77,9 @@ func main() {
 	}()
 
 	// Start gRPC server
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+	)
 	notification.RegisterNotificationServiceServer(
 		grpcServer,
 		notificationGrpcServer)

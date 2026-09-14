@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"osbourne.local/profile-service/gen/events"
-	"osbourne.local/profile-service/internal/domain"
+	"osbourne.local/auth-service/gen/events"
+	"osbourne.local/auth-service/internal/domain"
 )
 
 const (
@@ -20,15 +20,12 @@ const (
 	ExchangeKind = "topic"
 )
 
-// Publisher is a wrapper around go-rabbitmq that owns the "university.events"
-// topic exchange and publishes domain events produced by the profile service.
+// Publisher wraps go-rabbitmq and owns the "university.events" topic exchange
+// on which account.created events are published.
 type Publisher struct {
 	pub *rabbitmq.Publisher
 }
 
-// New creates a Publisher over an existing RabbitMQ connection. The exchange is
-// declared durably (idempotent) so it matches the topology owned by the
-// notification-service consumer.
 func New(conn *rabbitmq.Conn) (*Publisher, error) {
 	pub, err := rabbitmq.NewPublisher(
 		conn,
@@ -43,24 +40,25 @@ func New(conn *rabbitmq.Conn) (*Publisher, error) {
 	return &Publisher{pub: pub}, nil
 }
 
-// PublishStudentCreated publishes a student.created event on the topic
+// PublishAccountCreated publishes the account's creation on the topic
 // exchange. Messages use persistent delivery so they accumulate on the durable
-// queue while the consumer is offline.
-func (p *Publisher) PublishStudentCreated(ctx context.Context, event domain.StudentCreatedEvent) error {
-	studentEvent := &events.StudentCreatedEvent{
-		StudentId: event.StudentID,
+// consumer queues while the consumers are offline.
+func (p *Publisher) PublishAccountCreated(ctx context.Context, event domain.AccountCreatedEvent) error {
+	accountEvent := &events.AccountCreatedEvent{
+		AccountId: event.AccountID,
 		Email:     event.Email,
+		Role:      event.Role,
 		FullName:  event.FullName,
 	}
 
-	payload, err := proto.Marshal(studentEvent)
+	payload, err := proto.Marshal(accountEvent)
 	if err != nil {
-		return fmt.Errorf("failed to marshal StudentCreatedEvent: %w", err)
+		return fmt.Errorf("failed to marshal AccountCreatedEvent: %w", err)
 	}
 
 	envelope := &events.EventEnvelope{
 		Id:        uuid.NewString(),
-		Type:      "student.created",
+		Type:      "account.created",
 		Timestamp: timestamppb.New(time.Now()),
 		Payload:   payload,
 	}
@@ -70,19 +68,19 @@ func (p *Publisher) PublishStudentCreated(ctx context.Context, event domain.Stud
 		return fmt.Errorf("failed to marshal EventEnvelope: %w", err)
 	}
 
-	err = p.pub.PublishWithContext(ctx, body, []string{"student.created"},
+	err = p.pub.PublishWithContext(ctx, body, []string{"account.created"},
 		rabbitmq.WithPublishOptionsExchange(ExchangeName),
 		rabbitmq.WithPublishOptionsContentType("application/protobuf"),
-		rabbitmq.WithPublishOptionsType("student.created"),
+		rabbitmq.WithPublishOptionsType("account.created"),
 		rabbitmq.WithPublishOptionsMessageID(envelope.GetId()),
 		rabbitmq.WithPublishOptionsTimestamp(envelope.GetTimestamp().AsTime()),
 		rabbitmq.WithPublishOptionsPersistentDelivery,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to publish student.created event: %w", err)
+		return fmt.Errorf("failed to publish account.created event: %w", err)
 	}
 
-	log.Printf("[PUBLISHED] Published student.created event for student=%s", event.StudentID)
+	log.Printf("[PUBLISHED] Published account.created event for account=%s", event.AccountID)
 	return nil
 }
 

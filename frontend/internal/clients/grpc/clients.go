@@ -6,6 +6,7 @@ import "fmt"
 // frontend. All connections are created lazily (grpc.NewClient does not
 // dial) and are owned by this aggregate so they can be closed together.
 type Clients struct {
+	Auth            *AuthClient
 	Profile         *ProfileClient
 	Notification    *NotificationClient
 	CourseCatalogue *CourseCatalogueClient
@@ -16,10 +17,14 @@ type Clients struct {
 // Dial builds all clients. grpc.NewClient is lazy and non-blocking, so this
 // only fails on an invalid target string. If any client fails to construct,
 // the connections already created are closed before returning the error.
-func Dial(profileAddr, notificationAddr, catalogueAddr, contentAddr, assignmentAddr string) (*Clients, error) {
+func Dial(authAddr, profileAddr, notificationAddr, catalogueAddr, contentAddr, assignmentAddr string) (*Clients, error) {
 	clients := &Clients{}
 
 	var err error
+	if clients.Auth, err = NewAuthClient(authAddr); err != nil {
+		clients.Close()
+		return nil, fmt.Errorf("failed to create auth client: %w", err)
+	}
 	if clients.Profile, err = NewProfileClient(profileAddr); err != nil {
 		clients.Close()
 		return nil, fmt.Errorf("failed to create profile client: %w", err)
@@ -47,6 +52,9 @@ func Dial(profileAddr, notificationAddr, catalogueAddr, contentAddr, assignmentA
 func (c *Clients) Close() {
 	if c == nil {
 		return
+	}
+	if c.Auth != nil {
+		c.Auth.Close()
 	}
 	if c.Profile != nil {
 		c.Profile.Close()

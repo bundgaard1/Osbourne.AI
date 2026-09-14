@@ -32,11 +32,11 @@ func (h *Handler) HandleEnrollCourse(w http.ResponseWriter, r *http.Request) {
 	userID := UserFromContext(r.Context()).ID
 
 	courseRes, courseErr := h.clients.CourseCatalogue.Client.GetCourse(
-		r.Context(),
+		h.authCtx(r.Context()),
 		&coursecatalogue.GetCourseRequest{CourseId: courseID},
 	)
 
-	_, enrollErr := h.clients.CourseCatalogue.Client.EnrollUser(r.Context(),
+	_, enrollErr := h.clients.CourseCatalogue.Client.EnrollUser(h.authCtx(r.Context()),
 		&coursecatalogue.EnrollUserRequest{
 			UserId:   userID,
 			CourseId: courseID,
@@ -77,7 +77,7 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 
 	userID := UserFromContext(r.Context()).ID
 
-	stream, err := h.clients.Assignment.Client.SubmitAssignment(r.Context())
+	stream, err := h.clients.Assignment.Client.SubmitAssignment(h.authCtx(r.Context()))
 	if err != nil {
 		log.Printf("gRPC call SubmitAssignment (open stream) failed: %v", err)
 		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not start upload"})
@@ -140,7 +140,7 @@ func (h *Handler) HandleDownloadSubmission(w http.ResponseWriter, r *http.Reques
 	userID := UserFromContext(r.Context()).ID
 	_ = userID
 
-	resp, err := h.clients.Assignment.Client.DownloadSubmission(r.Context(),
+	resp, err := h.clients.Assignment.Client.DownloadSubmission(h.authCtx(r.Context()),
 		&assignment.DownloadSubmissionRequest{
 			SubmissionId: submissionID,
 		})
@@ -211,7 +211,7 @@ func (h *Handler) HandleGradeSubmission(w http.ResponseWriter, r *http.Request) 
 
 	feedback := r.FormValue("feedback")
 
-	_, err = h.clients.Assignment.Client.GradeSubmission(r.Context(),
+	_, err = h.clients.Assignment.Client.GradeSubmission(h.authCtx(r.Context()),
 		&assignment.GradeSubmissionRequest{
 			SubmissionId: submissionID,
 			Score:        int32(grade),
@@ -234,7 +234,7 @@ func (h *Handler) HandleMarkNotificationRead(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	resp, err := h.clients.Notification.Client.MarkNotificationAsRead(r.Context(),
+	resp, err := h.clients.Notification.Client.MarkNotificationAsRead(h.authCtx(r.Context()),
 		&notification.MarkNotificationAsReadRequest{NotificationId: notificationID})
 	if err != nil {
 		log.Printf("gRPC call MarkNotificationAsRead failed: %v", err)

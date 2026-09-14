@@ -48,14 +48,19 @@ templ Base(user domain.User) {
 			<div class="portal-shell">
 				<header class="top-navbar">
 					<h2>Osborne.AI Portal</h2>
-					<div class="user-badge">{ user.Name } ({ user.Role })</div>
+					<div class="user-badge">
+						{ user.Name } ({ user.Role })
+						<form method="POST" action="/logout" style="display:inline; margin-left:12px;">
+							<button type="submit" style="cursor:pointer;">Log out</button>
+						</form>
+					</div>
 				</header>
 
 				<nav class="side-navbar">
 					<ul>
 						<li><a href={ "/" }>Dashboard</a></li>
-						<li><a href={ "/profile?id=" + user.ID }>Profile</a></li>
-						<li><a href={ "/notifications?id=" + user.ID }>Notifications</a></li>
+						<li><a href={ "/profile" }>Profile</a></li>
+						<li><a href={ "/notifications" }>Notifications</a></li>
 						<li><a href={ "/course-catalog" }>Course Catalog</a></li>
 					</ul>
 				</nav>

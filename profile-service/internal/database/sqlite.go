@@ -37,20 +37,3 @@ func NewGORMDB(dbPath string) (*gorm.DB, error) {
 
 	return db, nil
 }
-
-func SeedData(db *gorm.DB) {
-	var count int64
-	db.Model(&domain.UserProfile{}).Count(&count)
-	if count > 0 {
-		return
-	}
-
-	student := domain.UserProfile{
-		ID:    "12345",
-		Name:  "Andy Osborne",
-		Email: "andy.osborne@osbourne.local",
-		Role:  "Student",
-	}
-
-	db.Create(&student)
-}
