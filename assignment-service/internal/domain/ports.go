@@ -16,6 +16,7 @@ type SubmissionRepository interface {
 	GetByID(ctx context.Context, id string) (*Submission, error)
 	Update(ctx context.Context, submission *Submission) error
 	ListByAssignment(ctx context.Context, assignmentID string) ([]*Submission, error)
+	ListByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) ([]*Submission, error)
 	GetByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) (*Submission, error)
 }
 

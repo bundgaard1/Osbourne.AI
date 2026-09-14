@@ -1,0 +1,38 @@
+package view
+
+import "osbourne.local/frontend/internal/domain"
+
+templ StudentSubmissionCard(submission domain.Submission, attempt int) {
+	@downloadScript()
+
+	<div class="submission-card">
+		<div class="submission-card-header">
+			<span class="submission-attempt">Attempt { attempt }</span>
+
+			if submission.Graded {
+				<span class="status-badge status-graded">Graded</span>
+			} else {
+				<span class="status-badge status-pending">Pending</span>
+			}
+		</div>
+
+		<p class="submission-meta">
+			Submitted { submission.SubmittedAt.Format("2006-01-02 15:04") }
+			&middot;
+			{ submission.Filename }
+			&middot;
+			{ formatBytes(submission.FileSize) }
+		</p>
+
+		if submission.Graded {
+			<p class="submission-grade"><strong>Score:</strong> { submission.Score }</p>
+			if submission.Feedback != "" {
+				<p class="submission-feedback"><strong>Feedback:</strong> { submission.Feedback }</p>
+			}
+		} else {
+			<p class="submission-feedback muted">Not graded yet &mdash; the teacher hasn't reviewed this attempt.</p>
+		}
+
+		<p><a class="download-link" data-filename={ submission.Filename } href={ "/api/submissions/" + submission.ID + "/download" }>Download submission</a></p>
+	</div>
+}

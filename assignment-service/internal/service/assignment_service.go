@@ -111,6 +111,10 @@ func (s *AssignmentService) ListSubmissionsByAssignment(ctx context.Context, ass
 	return s.submissionRepo.ListByAssignment(ctx, assignmentID)
 }
 
+func (s *AssignmentService) ListSubmissionsByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) ([]*domain.Submission, error) {
+	return s.submissionRepo.ListByStudentAndAssignment(ctx, studentID, assignmentID)
+}
+
 func (s *AssignmentService) GradeSubmission(ctx context.Context, submissionID string, score int, feedback string) error {
 	submission, err := s.submissionRepo.GetByID(ctx, submissionID)
 	if err != nil {

@@ -3,9 +3,10 @@ package view
 import "osbourne.local/frontend/internal/domain"
 
 var submitGradeOnce = templ.NewOnceHandle()
-var downloadOnce = templ.NewOnceHandle()
 
 templ SubmissionCard(submission domain.Submission) {
+    @downloadScript()
+
     @submitGradeOnce.Once() {
         <script>
             document.addEventListener('submit', function (event) {
@@ -41,47 +42,6 @@ templ SubmissionCard(submission domain.Submission) {
                     .catch(function () {
                         if (button) button.disabled = false;
                         showToast('Could not complete grading', 'error');
-                    });
-            });
-        </script>
-    }
-
-    @downloadOnce.Once() {
-        <script>
-            document.addEventListener('click', function (event) {
-                var link = event.target.closest('a.download-link');
-                if (!link) return;
-
-                event.preventDefault();
-
-                var filename = link.getAttribute('data-filename') || 'submission';
-
-                fetch(link.href)
-                    .then(function (resp) {
-                        return resp.blob().then(function (blob) {
-                            return {
-                                ok: resp.ok,
-                                contentType: resp.headers.get('Content-Type') || '',
-                                blob: blob
-                            };
-                        });
-                    })
-                    .then(function (result) {
-                        if (!result.ok || result.contentType.indexOf('application/json') !== -1) {
-                            showToast('Could not download submission', 'error');
-                            return;
-                        }
-
-                        var a = document.createElement('a');
-                        a.href = URL.createObjectURL(result.blob);
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(a.href);
-                    })
-                    .catch(function () {
-                        showToast('Could not download submission', 'error');
                     });
             });
         </script>

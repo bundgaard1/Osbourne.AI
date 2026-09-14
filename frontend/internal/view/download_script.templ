@@ -1,0 +1,48 @@
+package view
+
+var downloadScriptOnce = templ.NewOnceHandle()
+
+// downloadScript injects the fetch+blob download handler used by submission
+// cards. Guarded by a Once handle so it renders at most once per page.
+templ downloadScript() {
+    @downloadScriptOnce.Once() {
+        <script>
+            document.addEventListener('click', function (event) {
+                var link = event.target.closest('a.download-link');
+                if (!link) return;
+
+                event.preventDefault();
+
+                var filename = link.getAttribute('data-filename') || 'submission';
+
+                fetch(link.href)
+                    .then(function (resp) {
+                        return resp.blob().then(function (blob) {
+                            return {
+                                ok: resp.ok,
+                                contentType: resp.headers.get('Content-Type') || '',
+                                blob: blob
+                            };
+                        });
+                    })
+                    .then(function (result) {
+                        if (!result.ok || result.contentType.indexOf('application/json') !== -1) {
+                            showToast('Could not download submission', 'error');
+                            return;
+                        }
+
+                        var a = document.createElement('a');
+                        a.href = URL.createObjectURL(result.blob);
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(a.href);
+                    })
+                    .catch(function () {
+                        showToast('Could not download submission', 'error');
+                    });
+            });
+        </script>
+    }
+}

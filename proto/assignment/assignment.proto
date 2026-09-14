@@ -17,6 +17,7 @@ service AssignmentService {
   rpc DownloadSubmission(DownloadSubmissionRequest) returns (stream DownloadSubmissionResponse);
   rpc GetSubmission(GetSubmissionRequest) returns (GetSubmissionResponse);
   rpc ListSubmissions(ListSubmissionsRequest) returns (ListSubmissionsResponse);
+  rpc ListMySubmissions(ListMySubmissionsRequest) returns (ListSubmissionsResponse);
   rpc GradeSubmission(GradeSubmissionRequest) returns (GradeSubmissionResponse);
 }
 
@@ -124,6 +125,13 @@ message ListSubmissionsRequest {
 
 message ListSubmissionsResponse {
   repeated Submission submissions = 1;
+}
+
+// Returns only the calling student's submissions for an assignment. The
+// student identity is taken from the authenticated JWT claims, never from the
+// request payload.
+message ListMySubmissionsRequest {
+  string assignment_id = 1;
 }
 
 message GradeSubmissionRequest {

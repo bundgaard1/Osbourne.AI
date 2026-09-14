@@ -212,3 +212,74 @@ body {
 	font-size: 13px;
 	margin-top: 16px;
 }
+
+.submission-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.submission-card {
+	padding: 14px 16px;
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+}
+
+.submission-card-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.submission-attempt {
+	font-weight: bold;
+}
+
+.status-badge {
+	padding: 3px 10px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: bold;
+}
+
+.status-graded {
+	background: #e8f5e9;
+	color: #2e7d32;
+}
+
+.status-pending {
+	background: #fff8e1;
+	color: #f9a825;
+}
+
+.submission-meta {
+	margin: 0 0 6px;
+	color: #555;
+}
+
+.submission-grade {
+	margin: 0 0 4px;
+}
+
+.submission-feedback {
+	margin: 0 0 6px;
+}
+
+.submission-feedback.muted {
+	color: #888;
+}
+
+.submission-card .download-link {
+	color: #1e88e5;
+}
+
+.empty-state {
+	color: #777;
+	font-style: italic;
+	margin: 8px 0 0;
+}

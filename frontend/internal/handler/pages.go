@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -156,20 +157,34 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	submissionsRes, err := h.clients.Assignment.Client.ListSubmissions(
-		h.authCtx(r.Context()),
-		&assignment.ListSubmissionsRequest{
-			AssignmentId: assignmentID,
-		},
-	)
-	if err != nil {
-		fetchError(w, "Could not fetch assignment submissions", err)
-		return
+	var submissions []domain.Submission
+	if strings.EqualFold(user.Role, "student") {
+		// Students only ever see their own submissions; the list is scoped by
+		// the authenticated identity in the assignment service.
+		myRes, err := h.clients.Assignment.Client.ListMySubmissions(
+			h.authCtx(r.Context()),
+			&assignment.ListMySubmissionsRequest{AssignmentId: assignmentID},
+		)
+		if err != nil {
+			fetchError(w, "Could not fetch your submissions", err)
+			return
+		}
+		submissions = toDomainSubmissions(myRes.GetSubmissions())
+	} else {
+		submissionsRes, err := h.clients.Assignment.Client.ListSubmissions(
+			h.authCtx(r.Context()),
+			&assignment.ListSubmissionsRequest{AssignmentId: assignmentID},
+		)
+		if err != nil {
+			fetchError(w, "Could not fetch assignment submissions", err)
+			return
+		}
+		submissions = toDomainSubmissions(submissionsRes.GetSubmissions())
 	}
 
 	renderPage(w, r, view.AssignmentPage(view.AssignmentPageData{
 		PageData:    view.PageData{User: user},
 		Assignment:  toDomainAssignment(assignmentsRes.GetAssignment()),
-		Submissions: toDomainSubmissions(submissionsRes.GetSubmissions()),
+		Submissions: submissions,
 	}))
 }

@@ -29,7 +29,7 @@ templ AssignmentPage(data AssignmentPageData) {
                 var formData = new FormData(form);
 
                 fetch(form.action, {
-m                    method: 'POST',
+                    method: 'POST',
                     body: formData
                 })
                     .then(function (resp) {
@@ -68,6 +68,22 @@ m                    method: 'POST',
                     <input type="file" name="submission_file" required>
                     <button type="submit">Submit Assignment</button>
                 </form>
+            </section>
+
+            <section>
+                <h2>Your Submissions</h2>
+
+                if len(data.Submissions) == 0 {
+                    <p class="empty-state">You haven't submitted anything yet &mdash; upload your work above.</p>
+                } else {
+                    <ol class="submission-list">
+                        for index, submission := range data.Submissions {
+                            <li>
+                                @StudentSubmissionCard(submission, index+1)
+                            </li>
+                        }
+                    </ol>
+                }
             </section>
         }
 

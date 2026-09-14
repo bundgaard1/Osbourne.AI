@@ -15,6 +15,7 @@ import (
 	"osbourne.local/assignment-service/internal/domain"
 	"osbourne.local/assignment-service/internal/repository"
 	"osbourne.local/assignment-service/internal/service"
+	"osbourne.local/auth-common"
 )
 
 type AssignmentServer struct {
@@ -212,13 +213,27 @@ func (s *AssignmentServer) ListSubmissions(ctx context.Context, req *assignmentp
 		return nil, err
 	}
 
-	protoSubmissions := make([]*assignmentpb.Submission, len(submissions))
-	for i, submission := range submissions {
-		protoSubmissions[i] = toProtoSubmission(submission)
+	return &assignmentpb.ListSubmissionsResponse{
+		Submissions: toProtoSubmissions(submissions),
+	}, nil
+}
+
+// ListMySubmissions returns only the calling student's submissions for an
+// assignment. The student identity is read from the authenticated JWT claims
+// injected by the auth interceptor, never from the request payload.
+func (s *AssignmentServer) ListMySubmissions(ctx context.Context, req *assignmentpb.ListMySubmissionsRequest) (*assignmentpb.ListSubmissionsResponse, error) {
+	claims, ok := authcommon.ClaimsFromContext(ctx)
+	if !ok {
+		return nil, authcommon.RequiresAuthentication()
+	}
+
+	submissions, err := s.svc.ListSubmissionsByStudentAndAssignment(ctx, claims.UserID, req.GetAssignmentId())
+	if err != nil {
+		return nil, err
 	}
 
 	return &assignmentpb.ListSubmissionsResponse{
-		Submissions: protoSubmissions,
+		Submissions: toProtoSubmissions(submissions),
 	}, nil
 }
 
@@ -240,6 +255,14 @@ func toProtoAssignment(assignment *domain.Assignment) *assignmentpb.Assignment {
 		Description: assignment.Description,
 		DueDate:     timestamppb.New(assignment.DueDate),
 	}
+}
+
+func toProtoSubmissions(submissions []*domain.Submission) []*assignmentpb.Submission {
+	protoSubmissions := make([]*assignmentpb.Submission, len(submissions))
+	for i, submission := range submissions {
+		protoSubmissions[i] = toProtoSubmission(submission)
+	}
+	return protoSubmissions
 }
 
 func toProtoSubmission(submission *domain.Submission) *assignmentpb.Submission {

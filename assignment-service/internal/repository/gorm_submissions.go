@@ -35,20 +35,22 @@ func (r *GORMSubmissionRepository) Update(ctx context.Context, submission *domai
 	return r.db.WithContext(ctx).Save(submission).Error
 }
 
-func (r *GORMSubmissionRepository) ListByCourse(ctx context.Context, assignmentID string) ([]*domain.Submission, error) {
+func (r *GORMSubmissionRepository) ListByAssignment(ctx context.Context, assignmentID string) ([]*domain.Submission, error) {
 	var submissions []*domain.Submission
 	if err := r.db.WithContext(ctx).
 		Where("assignment_id = ?", assignmentID).
+		Order("submitted_at DESC").
 		Find(&submissions).Error; err != nil {
 		return nil, err
 	}
 	return submissions, nil
 }
 
-func (r *GORMSubmissionRepository) ListByAssignment(ctx context.Context, assignmentID string) ([]*domain.Submission, error) {
+func (r *GORMSubmissionRepository) ListByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) ([]*domain.Submission, error) {
 	var submissions []*domain.Submission
 	if err := r.db.WithContext(ctx).
-		Where("assignment_id = ?", assignmentID).
+		Where("student_id = ? AND assignment_id = ?", studentID, assignmentID).
+		Order("submitted_at DESC").
 		Find(&submissions).Error; err != nil {
 		return nil, err
 	}

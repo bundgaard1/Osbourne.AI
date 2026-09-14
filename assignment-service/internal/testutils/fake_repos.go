@@ -72,6 +72,16 @@ func (f *FakeSubmissionRepository) ListByAssignment(ctx context.Context, assignm
 	return out, nil
 }
 
+func (f *FakeSubmissionRepository) ListByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) ([]*domain.Submission, error) {
+	var out []*domain.Submission
+	for _, s := range f.Submissions {
+		if s.StudentID == studentID && s.AssignmentID == assignmentID {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
 func (f *FakeSubmissionRepository) GetByStudentAndAssignment(ctx context.Context, studentID, assignmentID string) (*domain.Submission, error) {
 	for _, s := range f.Submissions {
 		if s.StudentID == studentID && s.AssignmentID == assignmentID {
