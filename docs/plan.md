@@ -129,7 +129,7 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 * [x] Download of submitted files.
 
 
-### [ ] Step 3.4: Event Publishing from Services
+### [x] Step 3.4: Event Publishing from Services
 
 #### **1. Database & Domain Event Setup**
 
@@ -139,8 +139,8 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 #### **2. Service Layer Integration**
 
-* [ ] **Publish on DB mutation:** Call `publisher.Publish("student.created", payload)` right after a successful SQL transaction (e.g. in `CreateProfile`).
-* [ ] **Error Handling / Fallback:** Make sure to log a clear error if the DB change succeeded but the RabbitMQ call fails (or implement the Outbox pattern, if you want to be extra thorough).
+* [x] **Publish on DB mutation:** Call `publisher.Publish("student.created", payload)` right after a successful SQL transaction (e.g. in `CreateProfile`).
+* [x] **Error Handling / Fallback:** Make sure to log a clear error if the DB change succeeded but the RabbitMQ call fails (or implement the Outbox pattern, if you want to be extra thorough).
 
 #### **3. Server & Consumer Setup**
 
@@ -149,9 +149,9 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 
 #### **4. Frontend Integration & Test**
 
-* [ ] **UI Trigger:** Create a new student or enroll in a course via the Frontend.
-* [ ] **RabbitMQ Dashboard Check:** Check http://localhost:15672 and verify that the message count increases under the `Publish` rate on the queue.
-* [ ] **Notification Badge in Frontend:** Open the notifications page in the frontend and verify that the newly created notification is shown to the user.
+* [x] **UI Trigger:** Create a new student or enroll in a course via the Frontend.
+* [x] **RabbitMQ Dashboard Check:** Check http://localhost:15672 and verify that the message count increases under the `Publish` rate on the queue.
+* [x] **Notification Badge in Frontend:** Open the notifications page in the frontend and verify that the newly created notification is shown to the user.
 
 #### **5. Event Catalog (Publishing Points → Consumer Responses)**
 
