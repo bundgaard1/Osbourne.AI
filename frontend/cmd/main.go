@@ -8,12 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/frontend/internal/app"
 )
 
 func main() {
-	authcommon.SetupLogging("frontend")
+	common.SetupLogging("frontend")
 
 	cfg := app.Config{
 		Port:                       getEnv("PORT", "8080"),

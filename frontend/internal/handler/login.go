@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/frontend/gen/auth"
 	"osbourne.local/frontend/internal/view"
 )
@@ -19,7 +19,7 @@ var roleEmails = map[string]string{
 
 func (h *Handler) HandleLoginPage(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
-		if _, err := authcommon.ParseJWT(h.jwtSecret, cookie.Value); err == nil {
+		if _, err := common.ParseJWT(h.jwtSecret, cookie.Value); err == nil {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}

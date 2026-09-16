@@ -22,7 +22,7 @@ import (
 	"osbourne.local/assignment-service/internal/seed"
 	"osbourne.local/assignment-service/internal/server"
 	"osbourne.local/assignment-service/internal/service"
-	"osbourne.local/auth-common"
+	"osbourne.local/common"
 )
 
 type Config struct {
@@ -132,7 +132,10 @@ func main() {
 	grpcServerImpl := server.NewAssignmentServer(appService)
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(authcommon.AuthInterceptor(cfg.JWTSecret)),
+		grpc.ChainUnaryInterceptor(
+			common.AuthInterceptor(cfg.JWTSecret),
+			common.RequestLoggerInterceptor(),
+		),
 	)
 	assignment.RegisterAssignmentServiceServer(grpcServer, grpcServerImpl)
 

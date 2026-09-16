@@ -4,9 +4,9 @@ RUN apk add --no-cache ca-certificates git
 
 WORKDIR /src
 
-# The assignment-service depends on the sibling auth-common module, so the
+# The assignment-service depends on the sibling common module, so the
 # build context must be the repository root (set in docker-compose.yml).
-COPY auth-common/ auth-common/
+COPY common/ common/
 COPY assignment-service/ assignment-service/
 
 WORKDIR /src/assignment-service

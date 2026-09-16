@@ -51,7 +51,7 @@ The platform is split into small, independently deployable services:
 - **Notification Service** (`notification-service`): inbox notifications consumed from `account.created`, `course.enrolled` and `grade.published`.
 - **Frontend UI** (`frontend`): user-facing dashboard that talks to all services over gRPC.
 
-Shared code (logging, JWT parsing, gRPC interceptors, request-ID correlation) lives in the `auth-common` module.
+Shared code (logging, JWT parsing, gRPC interceptors, request-ID correlation) lives in the `common` module.
 
 ## Observability
 

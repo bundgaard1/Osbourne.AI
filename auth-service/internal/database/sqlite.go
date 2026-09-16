@@ -8,13 +8,13 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/auth-service/internal/domain"
 )
 
 func NewGORMDB(dbPath string) (*gorm.DB, error) {
 	// SQL chatter is noise in production; surface real errors only.
-	gormLogger := authcommon.NewGormLogger()
+	gormLogger := common.NewGormLogger()
 
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create DB directory: %w", err)

@@ -7,7 +7,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/assignment-service/internal/domain"
 	"osbourne.local/assignment-service/internal/seed"
 )
@@ -15,7 +15,7 @@ import (
 func NewGORMDB(dbPath string) (*gorm.DB, error) {
 	// SQL chatter is noise in production; surface real errors only.
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-		Logger: authcommon.NewGormLogger(),
+		Logger: common.NewGormLogger(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Could not initialize GORM: %w", err)

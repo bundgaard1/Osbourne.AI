@@ -7,9 +7,9 @@ RUN apk add --no-cache ca-certificates git
 
 WORKDIR /src
 
-# The profile-service depends on the sibling auth-common module, so the build
+# The profile-service depends on the sibling common module, so the build
 # context must be the repository root (set in docker-compose.yml).
-COPY auth-common/ auth-common/
+COPY common/ common/
 COPY profile-service/ profile-service/
 
 WORKDIR /src/profile-service

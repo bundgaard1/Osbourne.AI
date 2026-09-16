@@ -31,6 +31,6 @@ require (
 	modernc.org/sqlite v1.28.0 // indirect
 )
 
-require osbourne.local/auth-common v0.0.0
+require osbourne.local/common v0.0.0
 
-replace osbourne.local/auth-common => ../auth-common
+replace osbourne.local/common => ../common

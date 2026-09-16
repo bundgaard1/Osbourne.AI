@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/auth-service/gen/events"
 	"osbourne.local/auth-service/internal/domain"
 )
@@ -34,7 +34,7 @@ func New(conn *rabbitmq.Conn) (*Publisher, error) {
 		rabbitmq.WithPublisherOptionsExchangeKind(ExchangeKind),
 		rabbitmq.WithPublisherOptionsExchangeDurable,
 		rabbitmq.WithPublisherOptionsExchangeDeclare,
-		rabbitmq.WithPublisherOptionsLogger(rabbitmq.Logger(authcommon.RabbitLogger{})),
+		rabbitmq.WithPublisherOptionsLogger(rabbitmq.Logger(common.RabbitLogger{})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rabbitmq publisher: %w", err)

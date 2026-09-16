@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/frontend/gen/profile"
 	grpcclient "osbourne.local/frontend/internal/clients/grpc"
 	"osbourne.local/frontend/internal/domain"
@@ -74,7 +74,7 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 func logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		ctx := authcommon.WithRequestID(r.Context(), middleware.GetReqID(r.Context()))
+		ctx := common.WithRequestID(r.Context(), middleware.GetReqID(r.Context()))
 		r = r.WithContext(ctx)
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
@@ -99,7 +99,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		claims, err := authcommon.ParseJWT(h.jwtSecret, cookie.Value)
+		claims, err := common.ParseJWT(h.jwtSecret, cookie.Value)
 		if err != nil {
 			slog.WarnContext(r.Context(), "invalid session token", "err", err)
 			clearSessionCookie(w)
@@ -107,7 +107,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := authcommon.WithClaims(r.Context(), claims)
+		ctx := common.WithClaims(r.Context(), claims)
 		user := domain.User{
 			ID:    claims.UserID,
 			Email: claims.Email,
@@ -117,7 +117,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 
 		// Resolve the display name from the user's profile.
 		res, err := h.clients.Profile.Client.GetUserProfile(
-			authcommon.AttachToken(ctx, user.Token),
+			common.AttachToken(ctx, user.Token),
 			&profile.ProfileRequest{UserId: user.ID},
 		)
 		if err == nil {
@@ -138,7 +138,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 func (h *Handler) authCtx(ctx context.Context) context.Context {
 	ctx = h.reqIDCtx(ctx)
 	if u, ok := ctx.Value(userKey).(domain.User); ok && u.Token != "" {
-		return authcommon.AttachToken(ctx, u.Token)
+		return common.AttachToken(ctx, u.Token)
 	}
 	return ctx
 }
@@ -147,7 +147,7 @@ func (h *Handler) authCtx(ctx context.Context) context.Context {
 // services can correlate a single request across the whole stack.
 func (h *Handler) reqIDCtx(ctx context.Context) context.Context {
 	if id := middleware.GetReqID(ctx); id != "" {
-		return authcommon.AttachRequestID(ctx, id)
+		return common.AttachRequestID(ctx, id)
 	}
 	return ctx
 }

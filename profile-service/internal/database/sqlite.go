@@ -10,13 +10,13 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/profile-service/internal/domain"
 )
 
 func NewGORMDB(dbPath string) (*gorm.DB, error) {
 	// SQL chatter is noise in production; surface real errors only.
-	gormLogger := authcommon.NewGormLogger()
+	gormLogger := common.NewGormLogger()
 
 	// Ensure folder exists
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {

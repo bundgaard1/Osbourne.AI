@@ -1,4 +1,4 @@
-package authcommon
+package common
 
 import (
 	"context"

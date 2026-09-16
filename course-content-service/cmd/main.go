@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	coursecontent "osbourne.local/course-content-service/gen/course-content"
 	"osbourne.local/course-content-service/internal/database"
 	"osbourne.local/course-content-service/internal/repository"
@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	authcommon.SetupLogging("course-content-service")
+	common.SetupLogging("course-content-service")
 
 	port := "50054"
 
@@ -58,7 +58,10 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+		grpc.ChainUnaryInterceptor(
+			common.AuthInterceptor(jwtSecret),
+			common.RequestLoggerInterceptor(),
+		),
 	)
 
 	coursecontent.RegisterCourseContentServiceServer(

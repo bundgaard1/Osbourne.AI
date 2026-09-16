@@ -13,7 +13,6 @@ volumes:
 services:
   api-gateway:
     image: nginx:alpine
-    container_name: osbourne-api-gateway
     ports:
       - "80:80"
     volumes:
@@ -33,7 +32,6 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: osbourne-rabbitmq
     ports:
       - "15672:15672" # Management Dashboard (http://localhost:15672)
     environment:
@@ -52,7 +50,6 @@ services:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
-    container_name: osbourne-auth-service
     environment:
       - PORT=50056
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
@@ -71,7 +68,6 @@ services:
     build:
       context: .
       dockerfile: profile-service/Dockerfile
-    container_name: osbourne-profile-service
     environment:
       - PORT=50051
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
@@ -90,7 +86,6 @@ services:
     build:
       context: .
       dockerfile: notification-service/Dockerfile
-    container_name: osbourne-notification-service
     environment:
       - PORT=50052
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
@@ -109,7 +104,6 @@ services:
     build:
       context: .
       dockerfile: course-catalogue-service/Dockerfile
-    container_name: osbourne-course-catalogue-service
     environment:
       - PORT=50053
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
@@ -128,7 +122,6 @@ services:
     build:
       context: .
       dockerfile: course-content-service/Dockerfile
-    container_name: osbourne-course-content-service
     environment:
       - PORT=50054
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
@@ -147,7 +140,6 @@ services:
     build:
       context: .
       dockerfile: assignment-service/Dockerfile
-    container_name: osbourne-assignment-service
     environment:
       - PORT=50055
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
@@ -168,7 +160,6 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: osbourne-frontend
     ports:
       - "8080:8080"
     environment:

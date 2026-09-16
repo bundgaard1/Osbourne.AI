@@ -7,10 +7,10 @@ require (
 	github.com/go-chi/chi/v5 v5.3.1
 	google.golang.org/grpc v1.83.0
 	google.golang.org/protobuf v1.36.12
-	osbourne.local/auth-common v0.0.0
+	osbourne.local/common v0.0.0
 )
 
-replace osbourne.local/auth-common => ../auth-common
+replace osbourne.local/common => ../common
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect

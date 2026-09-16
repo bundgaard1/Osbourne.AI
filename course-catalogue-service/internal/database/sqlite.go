@@ -6,13 +6,13 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/course-catalogue-service/internal/domain"
 )
 
 func NewGORMDB(dbPath string) (*gorm.DB, error) {
 	// SQL chatter is noise in production; surface real errors only.
-	gormLogger := authcommon.NewGormLogger()
+	gormLogger := common.NewGormLogger()
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger: gormLogger,

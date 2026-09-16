@@ -11,7 +11,7 @@ import (
 
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/notification-service/gen/notification"
 	"osbourne.local/notification-service/internal/consumer"
 	"osbourne.local/notification-service/internal/database"
@@ -21,7 +21,7 @@ import (
 )
 
 func main() {
-	authcommon.SetupLogging("notification-service")
+	common.SetupLogging("notification-service")
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -84,7 +84,10 @@ func main() {
 
 	// Start gRPC server
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+		grpc.ChainUnaryInterceptor(
+			common.AuthInterceptor(jwtSecret),
+			common.RequestLoggerInterceptor(),
+		),
 	)
 	notification.RegisterNotificationServiceServer(
 		grpcServer,

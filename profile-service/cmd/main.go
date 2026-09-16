@@ -12,7 +12,7 @@ import (
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/profile-service/gen/profile"
 	"osbourne.local/profile-service/internal/consumer"
 	"osbourne.local/profile-service/internal/database"
@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	authcommon.SetupLogging("profile-service")
+	common.SetupLogging("profile-service")
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -82,7 +82,10 @@ func main() {
 	}()
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+		grpc.ChainUnaryInterceptor(
+			common.AuthInterceptor(jwtSecret),
+			common.RequestLoggerInterceptor(),
+		),
 	)
 	profile.RegisterProfileServiceServer(grpcServer, profileGrpcServer)
 

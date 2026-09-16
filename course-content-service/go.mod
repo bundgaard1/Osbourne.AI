@@ -52,6 +52,6 @@ exclude (
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
 )
 
-require osbourne.local/auth-common v0.0.0
+require osbourne.local/common v0.0.0
 
-replace osbourne.local/auth-common => ../auth-common
+replace osbourne.local/common => ../common

@@ -8,7 +8,7 @@ import (
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/protobuf/proto"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/notification-service/gen/events"
 	"osbourne.local/notification-service/internal/service"
 )
@@ -35,7 +35,7 @@ func NewNotificationConsumer(conn *rabbitmq.Conn, svc *service.NotificationServi
 		rabbitmq.WithConsumerOptionsRoutingKey("course.*"),
 		rabbitmq.WithConsumerOptionsRoutingKey("grade.*"),
 		rabbitmq.WithConsumerOptionsConcurrency(4),
-		rabbitmq.WithConsumerOptionsLogger(rabbitmq.Logger(authcommon.RabbitLogger{})),
+		rabbitmq.WithConsumerOptionsLogger(rabbitmq.Logger(common.RabbitLogger{})),
 	)
 
 	if err != nil {

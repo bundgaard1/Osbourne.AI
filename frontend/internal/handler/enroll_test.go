@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/frontend/gen/assignment"
 	coursecatalogue "osbourne.local/frontend/gen/course-catalogue"
 	coursecontent "osbourne.local/frontend/gen/course-content"
@@ -96,7 +96,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 
 	const jwtSecret = "dev-secret-change-me"
 
-	token, err := authcommon.SignJWT(jwtSecret, "12345", "student@osbourne.local", "student", time.Hour)
+	token, err := common.SignJWT(jwtSecret, "12345", "student@osbourne.local", "student", time.Hour)
 	if err != nil {
 		t.Fatalf("sign token: %v", err)
 	}

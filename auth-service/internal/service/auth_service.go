@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/auth-service/internal/domain"
 )
 
@@ -51,7 +51,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 		slog.WarnContext(ctx, "failed to update last login", "account_id", account.ID, "err", err)
 	}
 
-	token, err := authcommon.SignJWT(s.cfg.JWTSecret, account.ID, account.Email, string(account.Role), s.cfg.TokenTTL)
+	token, err := common.SignJWT(s.cfg.JWTSecret, account.ID, account.Email, string(account.Role), s.cfg.TokenTTL)
 	if err != nil {
 		return "", nil, err
 	}
@@ -60,6 +60,6 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 }
 
 // ValidateToken verifies the JWT signature and expiry and returns its claims.
-func (s *AuthService) ValidateToken(ctx context.Context, token string) (*authcommon.Claims, error) {
-	return authcommon.ParseJWT(s.cfg.JWTSecret, token)
+func (s *AuthService) ValidateToken(ctx context.Context, token string) (*common.Claims, error) {
+	return common.ParseJWT(s.cfg.JWTSecret, token)
 }

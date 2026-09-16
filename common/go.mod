@@ -1,4 +1,4 @@
-module osbourne.local/auth-common
+module osbourne.local/common
 
 go 1.26.5
 

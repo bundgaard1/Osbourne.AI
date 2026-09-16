@@ -15,7 +15,7 @@ import (
 	"osbourne.local/assignment-service/internal/domain"
 	"osbourne.local/assignment-service/internal/repository"
 	"osbourne.local/assignment-service/internal/service"
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 )
 
 type AssignmentServer struct {
@@ -222,9 +222,9 @@ func (s *AssignmentServer) ListSubmissions(ctx context.Context, req *assignmentp
 // assignment. The student identity is read from the authenticated JWT claims
 // injected by the auth interceptor, never from the request payload.
 func (s *AssignmentServer) ListMySubmissions(ctx context.Context, req *assignmentpb.ListMySubmissionsRequest) (*assignmentpb.ListSubmissionsResponse, error) {
-	claims, ok := authcommon.ClaimsFromContext(ctx)
+	claims, ok := common.ClaimsFromContext(ctx)
 	if !ok {
-		return nil, authcommon.RequiresAuthentication()
+		return nil, common.RequiresAuthentication()
 	}
 
 	submissions, err := s.svc.ListSubmissionsByStudentAndAssignment(ctx, claims.UserID, req.GetAssignmentId())

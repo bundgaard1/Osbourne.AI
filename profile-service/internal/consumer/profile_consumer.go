@@ -7,7 +7,7 @@ import (
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/protobuf/proto"
 
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	"osbourne.local/profile-service/gen/events"
 	"osbourne.local/profile-service/internal/service"
 )
@@ -34,7 +34,7 @@ func NewProfileConsumer(conn *rabbitmq.Conn, svc *service.ProfileService) (*Prof
 		rabbitmq.WithConsumerOptionsExchangeDeclare,
 		rabbitmq.WithConsumerOptionsRoutingKey("account.created"),
 		rabbitmq.WithConsumerOptionsConcurrency(4),
-		rabbitmq.WithConsumerOptionsLogger(rabbitmq.Logger(authcommon.RabbitLogger{})),
+		rabbitmq.WithConsumerOptionsLogger(rabbitmq.Logger(common.RabbitLogger{})),
 	)
 	if err != nil {
 		return nil, err

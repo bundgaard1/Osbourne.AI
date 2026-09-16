@@ -10,7 +10,7 @@ import (
 
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
-	authcommon "osbourne.local/auth-common"
+	"osbourne.local/common"
 	coursecatalogue "osbourne.local/course-catalogue-service/gen/course-catalogue"
 	"osbourne.local/course-catalogue-service/internal/database"
 	"osbourne.local/course-catalogue-service/internal/publisher"
@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	authcommon.SetupLogging("course-catalogue-service")
+	common.SetupLogging("course-catalogue-service")
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -76,7 +76,10 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(authcommon.AuthInterceptor(jwtSecret)),
+		grpc.ChainUnaryInterceptor(
+			common.AuthInterceptor(jwtSecret),
+			common.RequestLoggerInterceptor(),
+		),
 	)
 
 	coursecatalogue.RegisterCourseCatalogueServiceServer(

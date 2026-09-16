@@ -10,7 +10,7 @@ require (
 	google.golang.org/grpc v1.83.0
 	google.golang.org/protobuf v1.36.11
 	gorm.io/gorm v1.31.2
-	osbourne.local/auth-common v0.0.0
+	osbourne.local/common v0.0.0
 )
 
 require (
@@ -32,4 +32,4 @@ require (
 	modernc.org/sqlite v1.23.1 // indirect
 )
 
-replace osbourne.local/auth-common => ../auth-common
+replace osbourne.local/common => ../common

@@ -4,9 +4,9 @@ RUN apk add --no-cache ca-certificates git
 
 WORKDIR /src
 
-# The course-content-service depends on the sibling auth-common module, so
+# The course-content-service depends on the sibling common module, so
 # the build context must be the repository root (set in docker-compose.yml).
-COPY auth-common/ auth-common/
+COPY common/ common/
 COPY course-content-service/ course-content-service/
 
 WORKDIR /src/course-content-service

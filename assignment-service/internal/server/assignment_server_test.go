@@ -19,7 +19,7 @@ import (
 	"osbourne.local/assignment-service/internal/repository"
 	"osbourne.local/assignment-service/internal/server"
 	"osbourne.local/assignment-service/internal/service"
-	"osbourne.local/auth-common"
+	"osbourne.local/common"
 )
 
 func startAssignmentServer(t *testing.T) (assignmentpb.AssignmentServiceClient, *repository.GORMSubmissionRepository, *repository.LocalFileStorage) {
@@ -278,7 +278,7 @@ func TestListMySubmissionsReturnsOnlyCallerSubmissions(t *testing.T) {
 	makeSubmission("student_1")
 
 	resp, err := grpcServerImpl.ListMySubmissions(
-		authcommon.WithClaims(ctx, &authcommon.Claims{UserID: "student_1", Role: "student"}),
+		common.WithClaims(ctx, &common.Claims{UserID: "student_1", Role: "student"}),
 		&assignmentpb.ListMySubmissionsRequest{AssignmentId: "a1"},
 	)
 	if err != nil {

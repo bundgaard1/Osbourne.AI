@@ -100,11 +100,11 @@ State is only exchanged through well-defined gRPC APIs and domain events.
 2. Auth-service validates credentials and returns a signed **JWT**.
 3. The frontend stores the token in an `HttpOnly` session cookie.
 4. For every subsequent gRPC call, the frontend attaches the token as `Authorization: Bearer <token>`.
-5. A shared gRPC **unary interceptor** (`auth-common` `AuthInterceptor`) verifies the JWT on each backend service and injects the decoded claims into the request context. Invalid/missing tokens are rejected with `Unauthenticated`.
+5. A shared gRPC **unary interceptor** (`common` `AuthInterceptor`) verifies the JWT on each backend service and injects the decoded claims into the request context. Invalid/missing tokens are rejected with `Unauthenticated`.
 
 # Observability & request correlation
 
-All services log **JSON** to stdout via `log/slog`, configured by `auth-common.SetupLogging`.
+All services log **JSON** to stdout via `log/slog`, configured by `common.SetupLogging`.
 
 Every log record is enriched —
 

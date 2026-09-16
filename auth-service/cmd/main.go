@@ -13,17 +13,17 @@ import (
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
 
-	authcommon "osbourne.local/auth-common"
 	"osbourne.local/auth-service/gen/auth"
 	"osbourne.local/auth-service/internal/database"
 	"osbourne.local/auth-service/internal/publisher"
 	"osbourne.local/auth-service/internal/repository"
 	"osbourne.local/auth-service/internal/server"
 	"osbourne.local/auth-service/internal/service"
+	"osbourne.local/common"
 )
 
 func main() {
-	authcommon.SetupLogging("auth-service")
+	common.SetupLogging("auth-service")
 
 	port := getEnv("PORT", "50056")
 	dbPath := getEnv("DB_PATH", "./auth.db")
@@ -73,7 +73,9 @@ func main() {
 	})
 	authGrpcServer := server.NewAuthServer(authSvc)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(common.RequestLoggerInterceptor()),
+	)
 	auth.RegisterAuthServiceServer(grpcServer, authGrpcServer)
 
 	go func() {

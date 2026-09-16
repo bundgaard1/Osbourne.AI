@@ -194,13 +194,13 @@ Supported events:
 
 #### **2. Service & JWT Implementation**
 
-* [x] **JWT Generator:** Shared `auth-common` module with `SignJWT(secret, user_id, email, role, exp)` issuing tokens containing `user_id`, `email`, `role` and `exp`.
+* [x] **JWT Generator:** Shared `common` module with `SignJWT(secret, user_id, email, role, exp)` issuing tokens containing `user_id`, `email`, `role` and `exp`.
 * [x] **Auth Service Methods:** Implement `Login` and `ValidateToken` methods in the service layer (no public registration — accounts are seeded).
 
 #### **3. gRPC Server & Gateway Interceptors**
 
 * [x] **Proto Specification:** Define `auth.proto` with `Login` and `ValidateToken` RPCs.
-* [x] **gRPC Auth Interceptor:** `auth-common.AuthInterceptor(secret)` reads the JWT from gRPC context Metadata (`authorization: bearer <token>`) and verifies the signature; wired into profile/notification/course-catalogue/course-content/assignment and enforced by the frontend for outgoing calls.
+* [x] **gRPC Auth Interceptor:** `common.AuthInterceptor(secret)` reads the JWT from gRPC context Metadata (`authorization: bearer <token>`) and verifies the signature; wired into profile/notification/course-catalogue/course-content/assignment and enforced by the frontend for outgoing calls.
 
 #### **4. Frontend / BFF Integration & Test**
 
@@ -274,7 +274,7 @@ hey -n 200 -c 20 http://localhost/api/v1/courses
 
 - [x] **Inverted ID generation in CreateModule** — `course-content-service/internal/service/module-service.go:25` generates a UUID only when `module.ID != ""`, which is the opposite of what you want. Should be `== ""`.
 - [x] **DeleteModule does nothing** — `course-content-service/internal/service/module-service.go:67-77` validates the module exists but never calls `s.repo.DeleteModule()`. Deletions silently no-op.
-- [x] **No authentication** — fixed: `frontend/internal/handler/handler.go` now runs a `Authenticate` middleware that reads the JWT from the `osbourne_session` cookie (no more `?id=` impersonation); auth-service issues the token and a shared `auth-common` gRPC interceptor enforces it on all five backend services.
+- [x] **No authentication** — fixed: `frontend/internal/handler/handler.go` now runs a `Authenticate` middleware that reads the JWT from the `osbourne_session` cookie (no more `?id=` impersonation); auth-service issues the token and a shared `common` gRPC interceptor enforces it on all five backend services.
 - [ ] **All gRPC traffic is unencrypted** — All 5 frontend gRPC clients use `insecure.NewCredentials()`. No TLS, no mTLS.
 
 ### High Priority Issues
@@ -294,7 +294,7 @@ hey -n 200 -c 20 http://localhost/api/v1/courses
 - [ ] **No CI/CD pipeline** — No GitHub Actions, GitLab CI, or any automation.
 - [ ] **No linting/formatting** — No `.golangci.yml` or equivalent.
 - [ ] **No health check endpoints** — No `/healthz` on any service. No Docker health checks on Go services.
-- [x] **No structured logging** — All services now use `log/slog` with a JSON handler (via shared `auth-common.SetupLogging`) to stdout. Log levels are configurable via `LOG_LEVEL`, request IDs (`x-request-id`) and `user_id` are propagated via gRPC metadata and added to every log record. GORM and go-rabbitmq chatter is routed through slog via `auth-common.NewGormLogger` and `auth-common.RabbitLogger` — all app containers emit pure JSON (verified via `docker compose logs`).
+- [x] **No structured logging** — All services now use `log/slog` with a JSON handler (via shared `common.SetupLogging`) to stdout. Log levels are configurable via `LOG_LEVEL`, request IDs (`x-request-id`) and `user_id` are propagated via gRPC metadata and added to every log record. GORM and go-rabbitmq chatter is routed through slog via `common.NewGormLogger` and `common.RabbitLogger` — all app containers emit pure JSON (verified via `docker compose logs`).
 - [ ] **Port env var ignored** in `course-catalogue-service` and `course-content-service` — hardcoded instead of reading `os.Getenv("PORT")`.
 - [x] **~150 lines of commented-out code** across `course-content-service` (attachment features never implemented).
 - [ ] **Alpha-stage dependency** — CloverDB is at `v2.0.0-alpha.3`. No stability guarantees for production data.
