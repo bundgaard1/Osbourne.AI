@@ -35,7 +35,6 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: osbourne-rabbitmq
     ports:
-      - "5672:5672"   # AMQP protocol
       - "15672:15672" # Management Dashboard (http://localhost:15672)
     environment:
       RABBITMQ_DEFAULT_USER: guest

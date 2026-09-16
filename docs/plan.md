@@ -212,7 +212,7 @@ Supported events:
 
 ---
 
-## [ ] Phase 4: Observability, Documentation & Final Check
+## [x] Phase 4: Observability, Documentation & Final Check
 
 **Goal:** Fulfill all non-functional requirements in the course's assessment criteria.
 
@@ -221,7 +221,7 @@ Supported events:
 * **Action:** Ensure that all 6 Go services use structured logging (`slog` or `zap`) to `stdout`/`stderr`.
 * **Test:** Run `docker compose logs -f` and follow a request's path through the Gateway and services.
 
-### [ ] Step 4.2: Documentation
+### [x] Step 4.2: Documentation
 
 * **Action:** Create a thorough `README.md` with:
 1. **Architecture Diagram:** Visualization of the 6 services, RabbitMQ, Gateway, SQL and NoSQL databases.
