@@ -282,7 +282,7 @@ hey -n 200 -c 20 http://localhost/api/v1/courses
 - [x] **RabbitMQ routing key mismatch** — fixed: notification consumer now binds `account.*`, `course.*` and `grade.*` (the legacy `student.*` binding was replaced), and profile-service adds its own `account.created` consumer.
 - [ ] **Hardcoded `guest:guest` RabbitMQ credentials** in `docker-compose.yml:40-41` with the management dashboard (port 15672) exposed to the host.
 - [x] **Debug print left in** — `course-catalogue-service/cmd/main.go:21` has `fmt.Println("hej")`.
-- [ ] **Panic in repository constructor** — `course-content-service/internal/repository/clover-content.go:23` calls `panic()` instead of returning an error.
+- [x] **Panic in repository constructor** — `course-content-service/internal/repository/clover-content.go:23` calls `panic()` instead of returning an error.
 
 ### Test Coverage Gaps
 

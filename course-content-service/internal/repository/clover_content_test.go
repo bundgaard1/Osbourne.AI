@@ -38,7 +38,10 @@ func TestCloverModuleRepository_CreateAndGetModule(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := repository.NewCloverModuleRepository(db, "modules-test")
+	repo, err := repository.NewCloverModuleRepository(db, "modules-test")
+	if err != nil {
+		t.Fatalf("failed to create module repository: %v", err)
+	}
 	ctx := context.Background()
 
 	inputModule := &domain.Module{
@@ -50,7 +53,7 @@ func TestCloverModuleRepository_CreateAndGetModule(t *testing.T) {
 	}
 
 	// 1. Test Create
-	err := repo.CreateModule(ctx, inputModule)
+	err = repo.CreateModule(ctx, inputModule)
 	if err != nil {
 		t.Fatalf("expected no error on create, got %v", err)
 	}
@@ -91,7 +94,10 @@ func TestCloverModuleRepository_ListModulesByCourseID(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := repository.NewCloverModuleRepository(db, "modules-test")
+	repo, err := repository.NewCloverModuleRepository(db, "modules-test")
+	if err != nil {
+		t.Fatalf("failed to create module repository: %v", err)
+	}
 	ctx := context.Background()
 
 	modules := []*domain.Module{
@@ -121,7 +127,10 @@ func TestCloverModuleRepository_UpdateAndDeleteModule(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	repo := repository.NewCloverModuleRepository(db, "modules-test")
+	repo, err := repository.NewCloverModuleRepository(db, "modules-test")
+	if err != nil {
+		t.Fatalf("failed to create module repository: %v", err)
+	}
 	ctx := context.Background()
 
 	module := &domain.Module{
@@ -133,7 +142,7 @@ func TestCloverModuleRepository_UpdateAndDeleteModule(t *testing.T) {
 	}
 
 	// Create the module first
-	err := repo.CreateModule(ctx, module)
+	err = repo.CreateModule(ctx, module)
 	if err != nil {
 		t.Fatalf("expected no error on create, got %v", err)
 	}
@@ -168,90 +177,4 @@ func TestCloverModuleRepository_UpdateAndDeleteModule(t *testing.T) {
 	if fetched != nil {
 		t.Errorf("expected module to be deleted, but it still exists")
 	}
-}
-
-// func TestCloverModuleRepository_AddAndRemoveAttachment(t *testing.T) {
-// 	db, cleanup := setupTestDB(t)
-// 	defer cleanup()
-
-// 	repo := repository.NewCloverModuleRepository(db, "modules-test")
-// 	ctx := context.Background()
-
-// 	module := &domain.Module{
-// 		ID:        "1",
-// 		CourseID:  "101",
-// 		Title:     "Module with Attachments",
-// 		Text:      "Testing attachments",
-// 		UpdatedAt: time.Now().Truncate(time.Millisecond),
-// 	}
-
-// 	// Create the module first
-// 	err := repo.CreateModule(ctx, module)
-// 	if err != nil {
-// 		t.Fatalf("expected no error on create, got %v", err)
-// 	}
-
-// 	attachment := &domain.Attachment{
-// 		Name:      "Attachment 1",
-// 		Type:      "pdf",
-// 		Path:      "/path/to/attachment1.pdf",
-// 		Size:      2048,
-// 		CreatedAt: time.Now().Truncate(time.Millisecond),
-// 	}
-
-// 	// Add attachment
-// 	err = repo.AddAttachmentToModule(ctx, module.ID, attachment)
-// 	if err != nil {
-// 		t.Fatalf("expected no error on add attachment, got %v", err)
-// 	}
-
-// 	// Verify attachment added
-// 	fetched, err := repo.GetModule(ctx, module.ID)
-// 	if err != nil {
-// 		t.Fatalf("expected no error on get after adding attachment, got %v", err)
-// 	}
-// 	if len(fetched.Attachments) != 1 || fetched.Attachments[0].ID != attachment.ID {
-// 		t.Errorf("attachment was not added correctly")
-// 	}
-
-// 	// Remove attachment
-// 	err = repo.RemoveAttachmentFromModule(ctx, module.ID, attachment.ID)
-// 	if err != nil {
-// 		t.Fatalf("expected no error on remove attachment, got %v", err)
-// 	}
-
-// 	// Verify attachment removed
-// 	fetched, err = repo.GetModule(ctx, module.ID)
-// 	if err != nil {
-// 		t.Fatalf("expected no error on get after removing attachment, got %v", err)
-// 	}
-// 	if len(fetched.Attachments) != 0 {
-// 		t.Errorf("attachment was not removed correctly")
-// 	}
-// }
-
-func LogAllModules(t *testing.T, repo *repository.CloverModuleRepository) {
-	t.Helper()
-	ctx := context.Background()
-	modules, n, err := repo.GetAllModules(ctx)
-	if err != nil {
-		t.Fatalf("failed to list modules: %v", err)
-	}
-	t.Logf("Total modules found: %d \n", n)
-	for _, m := range modules {
-		LogModuleDetails(t, m)
-	}
-}
-
-func LogModuleDetails(t *testing.T, module *domain.Module) {
-	t.Helper()
-	if module == nil {
-		t.Log("Module is nil")
-		return
-	}
-	t.Logf("-Module ID: %s, CourseID: %s, Title: %s, Text: %s, UpdatedAt: %v", module.ID, module.CourseID, module.Title, module.Text, module.UpdatedAt)
-	// t.Logf("-Attachments count: %d", len(module.Attachments))
-	// for i, att := range module.Attachments {
-	// 	t.Logf("--Attachment [%d]: ID: %s, Name: %s, Type: %s, Path: %s, Size: %d, CreatedAt: %v", i, att.ID, att.Name, att.Type, att.Path, att.Size, att.CreatedAt)
-	// }
 }

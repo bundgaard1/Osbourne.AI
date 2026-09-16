@@ -16,13 +16,13 @@ type CloverModuleRepository struct {
 	db             *c.DB
 }
 
-func NewCloverModuleRepository(db *c.DB, cn string) *CloverModuleRepository {
+func NewCloverModuleRepository(db *c.DB, cn string) (*CloverModuleRepository, error) {
 	// CreateCollection doubles as the existence check; ErrCollectionExist
 	// means the collection already exists, which is fine.
 	if err := db.CreateCollection(cn); err != nil && !errors.Is(err, c.ErrCollectionExist) {
-		panic(fmt.Sprintf("Could not create collection: %v", err))
+		return nil, fmt.Errorf("failed to create collection: %w", err)
 	}
-	return &CloverModuleRepository{db: db, collectionName: cn}
+	return &CloverModuleRepository{db: db, collectionName: cn}, nil
 }
 
 func (r *CloverModuleRepository) ListModules(ctx context.Context, courseID string) ([]*domain.Module, error) {

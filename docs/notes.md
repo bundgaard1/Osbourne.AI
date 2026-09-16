@@ -20,9 +20,9 @@ INFS605 - course project
 - Authentication Service
 
 ### Standard Services
-+ Frontend UI,
-+ API Gateway (Use Nginx or Traefik)
-+ Monitoring and Logging (Prometheus, Grafana, ELK stack)
+- Frontend UI,
+- API Gateway (Use Nginx or Traefik)
+- Monitoring and Logging (Prometheus, Grafana, ELK stack)
 
 ## Functional
 - Must expose at least 2 RESTful APIs with 2 endpoints
