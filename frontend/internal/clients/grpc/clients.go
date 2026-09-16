@@ -1,6 +1,18 @@
 package grpcclient
 
-import "fmt"
+import (
+	"fmt"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+// dialConn opens a lazy, non-blocking gRPC connection to the given target.
+// All in-process services run unencrypted, so TLS is not configured (see
+// docs/plan.md "All gRPC traffic is unencrypted").
+func dialConn(addr string) (*grpc.ClientConn, error) {
+	return grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+}
 
 // Clients is an aggregate of the gRPC client connections used by the
 // frontend. All connections are created lazily (grpc.NewClient does not

@@ -2,7 +2,6 @@ package grpcclient
 
 import (
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	coursecatalogue "osbourne.local/frontend/gen/course-catalogue"
 )
 
@@ -12,7 +11,7 @@ type CourseCatalogueClient struct {
 }
 
 func NewCourseCatalogueClient(addr string) (*CourseCatalogueClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := dialConn(addr)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,6 @@ package grpcclient
 
 import (
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"osbourne.local/frontend/gen/profile"
 )
 
@@ -12,7 +11,7 @@ type ProfileClient struct {
 }
 
 func NewProfileClient(addr string) (*ProfileClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := dialConn(addr)
 	if err != nil {
 		return nil, err
 	}

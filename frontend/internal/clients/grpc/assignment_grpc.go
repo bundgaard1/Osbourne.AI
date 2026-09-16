@@ -2,7 +2,6 @@ package grpcclient
 
 import (
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	assignment "osbourne.local/frontend/gen/assignment"
 )
 
@@ -12,7 +11,7 @@ type AssignmentClient struct {
 }
 
 func NewAssignmentClient(addr string) (*AssignmentClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := dialConn(addr)
 	if err != nil {
 		return nil, err
 	}

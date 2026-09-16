@@ -2,7 +2,6 @@ package grpcclient
 
 import (
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"osbourne.local/frontend/gen/auth"
 )
@@ -13,7 +12,7 @@ type AuthClient struct {
 }
 
 func NewAuthClient(addr string) (*AuthClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := dialConn(addr)
 	if err != nil {
 		return nil, err
 	}
