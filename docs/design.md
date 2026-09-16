@@ -46,6 +46,9 @@ graph LR;
 
     %% Subgraph to Subgraph
     BE -.->|Events| MQ
+
+    style Col1 fill:none,stroke:none
+    style Col2 fill:none,stroke:none
 ```
 
 # Communication
