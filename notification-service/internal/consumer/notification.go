@@ -3,10 +3,12 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/protobuf/proto"
+
+	authcommon "osbourne.local/auth-common"
 	"osbourne.local/notification-service/gen/events"
 	"osbourne.local/notification-service/internal/service"
 )
@@ -33,6 +35,7 @@ func NewNotificationConsumer(conn *rabbitmq.Conn, svc *service.NotificationServi
 		rabbitmq.WithConsumerOptionsRoutingKey("course.*"),
 		rabbitmq.WithConsumerOptionsRoutingKey("grade.*"),
 		rabbitmq.WithConsumerOptionsConcurrency(4),
+		rabbitmq.WithConsumerOptionsLogger(rabbitmq.Logger(authcommon.RabbitLogger{})),
 	)
 
 	if err != nil {
@@ -44,7 +47,7 @@ func NewNotificationConsumer(conn *rabbitmq.Conn, svc *service.NotificationServi
 }
 
 func (c *NotificationConsumer) Start(ctx context.Context) error {
-	log.Println("[CONSUMER] NotificationConsumer listening on RabbitMQ...")
+	slog.Info("NotificationConsumer listening on RabbitMQ")
 
 	err := c.rmq.Run(func(d rabbitmq.Delivery) rabbitmq.Action {
 		return c.processDelivery(ctx, d.Body)
@@ -62,17 +65,18 @@ func (c *NotificationConsumer) Close() {
 func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte) rabbitmq.Action {
 	var envelope events.EventEnvelope
 	if err := proto.Unmarshal(body, &envelope); err != nil {
-		log.Printf("[CONSUMER] Invalid EventEnvelope format: %v", err)
+		slog.Error("invalid EventEnvelope format", "err", err)
 		return rabbitmq.NackDiscard
 	}
 
-	fmt.Printf("[CONSUMER] Received event: %s", envelope.Type)
+	logger := slog.With("event_id", envelope.GetId(), "event_type", envelope.GetType())
+	logger.Info("received event")
 
 	switch envelope.Type {
 	case "account.created":
 		var event events.AccountCreatedEvent
 		if err := proto.Unmarshal(envelope.Payload, &event); err != nil {
-			log.Printf("[CONSUMER] Error on unmarshal of AccountCreatedEvent: %v", err)
+			logger.Error("error on unmarshal of AccountCreatedEvent", "err", err)
 			return rabbitmq.NackDiscard
 		}
 
@@ -83,13 +87,13 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 			"Hello "+event.GetFullName()+", welcome to Osbourne! We are excited to have you on board.")
 
 		if err != nil {
-			log.Printf("[CONSUMER] Error on creating notification: %v", err)
+			logger.Error("error on creating notification", "account_id", event.GetAccountId(), "err", err)
 			return rabbitmq.NackRequeue
 		}
 	case "course.enrolled":
 		var event events.CourseEnrolledEvent
 		if err := proto.Unmarshal(envelope.Payload, &event); err != nil {
-			log.Printf("[CONSUMER] Error on unmarshal of CourseEnrolledEvent: %v", err)
+			logger.Error("error on unmarshal of CourseEnrolledEvent", "err", err)
 			return rabbitmq.NackDiscard
 		}
 
@@ -99,13 +103,13 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 			"You have been enrolled in the course: "+event.GetCourseName()+".")
 
 		if err != nil {
-			log.Printf("[CONSUMER] Error on creating notification: %v", err)
+			logger.Error("error on creating notification", "student_id", event.GetStudentId(), "err", err)
 			return rabbitmq.NackRequeue
 		}
 	case "grade.published":
 		var event events.GradePublishedEvent
 		if err := proto.Unmarshal(envelope.Payload, &event); err != nil {
-			log.Printf("[CONSUMER] Error on unmarshal of GradePublishedEvent: %v", err)
+			logger.Error("error on unmarshal of GradePublishedEvent", "err", err)
 			return rabbitmq.NackDiscard
 		}
 
@@ -115,11 +119,11 @@ func (c *NotificationConsumer) processDelivery(ctx context.Context, body []byte)
 			fmt.Sprintf("Grade updated for Assignment: %s; \n Grade: %d; \n Course: %s.", event.GetAssignmentName(), event.GetGrade(), event.GetCourseId()))
 
 		if err != nil {
-			log.Printf("[CONSUMER] Error on creating notification: %v", err)
+			logger.Error("error on creating notification", "student_id", event.GetStudentId(), "err", err)
 			return rabbitmq.NackRequeue
 		}
 	default:
-		log.Printf("[CONSUMER] Ignoring unknown event-type: %s", envelope.Type)
+		logger.Warn("ignoring unknown event-type")
 	}
 
 	return rabbitmq.Ack

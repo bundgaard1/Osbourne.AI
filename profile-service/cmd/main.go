@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -12,7 +12,7 @@ import (
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
 
-	"osbourne.local/auth-common"
+	authcommon "osbourne.local/auth-common"
 	"osbourne.local/profile-service/gen/profile"
 	"osbourne.local/profile-service/internal/consumer"
 	"osbourne.local/profile-service/internal/database"
@@ -22,6 +22,8 @@ import (
 )
 
 func main() {
+	authcommon.SetupLogging("profile-service")
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "50051"
@@ -29,7 +31,8 @@ func main() {
 
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("Could not listen on port :%s: %v", port, err)
+		slog.Error("could not listen", "port", port, "err", err)
+		os.Exit(1)
 	}
 
 	dbPath := os.Getenv("DB_PATH")
@@ -39,7 +42,8 @@ func main() {
 
 	db, err := database.NewGORMDB(dbPath)
 	if err != nil {
-		log.Fatalf("Database error: %v", err)
+		slog.Error("database error", "err", err)
+		os.Exit(1)
 	}
 
 	profileRepo := repository.NewGORMProfileRepository(db)
@@ -59,19 +63,21 @@ func main() {
 	}
 	conn, err := rabbitmq.NewConn(amqpURL)
 	if err != nil {
-		log.Fatalf("Error creating RabbitMQ connection: %v", err)
+		slog.Error("error creating RabbitMQ connection", "err", err)
+		os.Exit(1)
 	}
 	defer conn.Close()
 
 	profileConsumer, err := consumer.NewProfileConsumer(conn, profileSvc)
 	if err != nil {
-		log.Fatalf("Error creating profile consumer: %v", err)
+		slog.Error("error creating profile consumer", "err", err)
+		os.Exit(1)
 	}
 	defer profileConsumer.Close()
 
 	go func() {
 		if err := profileConsumer.Start(context.Background()); err != nil {
-			log.Printf("Profile consumer stopped: %v", err)
+			slog.Error("profile consumer stopped", "err", err)
 		}
 	}()
 
@@ -81,9 +87,10 @@ func main() {
 	profile.RegisterProfileServiceServer(grpcServer, profileGrpcServer)
 
 	go func() {
-		log.Printf("profile-service (gRPC) running on port :%s...", port)
+		slog.Info("profile-service (gRPC) running", "port", port)
 		if err := grpcServer.Serve(lis); err != nil && err != grpc.ErrServerStopped {
-			log.Fatalf("Error while running gRPC server: %v", err)
+			slog.Error("error while running gRPC server", "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -91,7 +98,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	log.Println("Received shutdown signal. Shutting down gracefully...")
+	slog.Info("received shutdown signal, shutting down gracefully")
 
 	done := make(chan struct{})
 	go func() {
@@ -101,9 +108,9 @@ func main() {
 
 	select {
 	case <-done:
-		log.Println("gRPC server shut down gracefully.")
+		slog.Info("gRPC server shut down gracefully")
 	case <-time.After(5 * time.Second):
-		log.Println("Timeout exceeded - forcing shutdown.")
+		slog.Warn("timeout exceeded, forcing shutdown")
 		grpcServer.Stop()
 	}
 }

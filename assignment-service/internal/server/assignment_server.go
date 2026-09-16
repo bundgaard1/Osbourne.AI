@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/codes"
@@ -179,10 +179,10 @@ func (s *AssignmentServer) DownloadSubmission(req *assignmentpb.DownloadSubmissi
 			},
 		},
 	}); serr != nil {
-		fmt.Printf("Failed to send metadata: %v\n", serr)
+		slog.ErrorContext(stream.Context(), "failed to send download metadata", "submission_id", submission.ID, "err", serr)
 		return status.Errorf(codes.Internal, "failed to send metadata: %v", serr)
 	}
-	fmt.Printf("Sent metadata: filename=%s, size=%d\n", submission.FileName, submission.FileSize)
+	slog.InfoContext(stream.Context(), "sent download metadata", "submission_id", submission.ID, "filename", submission.FileName, "size", submission.FileSize)
 
 	// Send file content in chunks
 	buf := make([]byte, 1024)

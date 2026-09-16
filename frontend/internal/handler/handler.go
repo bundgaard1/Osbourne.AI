@@ -3,8 +3,9 @@ package handler
 import (
 	"context"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -39,7 +40,7 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
+	r.Use(logRequest)
 	r.Use(middleware.Recoverer)
 
 	r.Handle("/static/*", http.FileServer(http.FS(staticFiles)))
@@ -68,6 +69,27 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 	return r
 }
 
+// logRequest emits a structured, JSON access log line per HTTP request, tagged
+// with the request id set by middleware.RequestID.
+func logRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ctx := authcommon.WithRequestID(r.Context(), middleware.GetReqID(r.Context()))
+		r = r.WithContext(ctx)
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+		next.ServeHTTP(ww, r)
+
+		slog.InfoContext(r.Context(), "http request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.Status(),
+			"bytes", ww.BytesWritten(),
+			"duration_ms", time.Since(start).Milliseconds(),
+		)
+	})
+}
+
 // Middleware: verifies the session JWT and loads the user into the context.
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,12 +101,13 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 
 		claims, err := authcommon.ParseJWT(h.jwtSecret, cookie.Value)
 		if err != nil {
-			log.Printf("invalid session token: %v", err)
+			slog.WarnContext(r.Context(), "invalid session token", "err", err)
 			clearSessionCookie(w)
 			redirectToLogin(w, r)
 			return
 		}
 
+		ctx := authcommon.WithClaims(r.Context(), claims)
 		user := domain.User{
 			ID:    claims.UserID,
 			Email: claims.Email,
@@ -94,26 +117,37 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 
 		// Resolve the display name from the user's profile.
 		res, err := h.clients.Profile.Client.GetUserProfile(
-			authcommon.AttachToken(r.Context(), user.Token),
+			authcommon.AttachToken(ctx, user.Token),
 			&profile.ProfileRequest{UserId: user.ID},
 		)
 		if err == nil {
 			user.Name = res.GetName()
 		} else {
-			log.Printf("gRPC profile fetch failed: %v", err)
+			slog.WarnContext(ctx, "gRPC profile fetch failed", "err", err)
 			user.Name = "Unknown"
 		}
 
-		ctx := context.WithValue(r.Context(), userKey, user)
+		ctx = context.WithValue(ctx, userKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// authCtx returns a context that attaches the current user's bearer token to
-// outgoing gRPC metadata. Every backend service verifies this token.
+// authCtx returns a context that attaches the current user's bearer token and
+// the request id to outgoing gRPC metadata. Every backend service verifies
+// this token and can correlate on the request id.
 func (h *Handler) authCtx(ctx context.Context) context.Context {
+	ctx = h.reqIDCtx(ctx)
 	if u, ok := ctx.Value(userKey).(domain.User); ok && u.Token != "" {
 		return authcommon.AttachToken(ctx, u.Token)
+	}
+	return ctx
+}
+
+// reqIDCtx appends the current request id to outgoing gRPC metadata so backend
+// services can correlate a single request across the whole stack.
+func (h *Handler) reqIDCtx(ctx context.Context) context.Context {
+	if id := middleware.GetReqID(ctx); id != "" {
+		return authcommon.AttachRequestID(ctx, id)
 	}
 	return ctx
 }

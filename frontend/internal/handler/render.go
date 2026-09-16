@@ -2,7 +2,7 @@ package handler
 
 import (
 	"bytes"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -13,7 +13,7 @@ import (
 func renderPage(w http.ResponseWriter, r *http.Request, c templ.Component) {
 	var buf bytes.Buffer
 	if err := c.Render(r.Context(), &buf); err != nil {
-		log.Printf("render error: %v", err)
+		slog.ErrorContext(r.Context(), "render error", "err", err)
 		http.Error(w, "Render error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -21,8 +21,8 @@ func renderPage(w http.ResponseWriter, r *http.Request, c templ.Component) {
 	_, _ = w.Write(buf.Bytes())
 }
 
-func fetchError(w http.ResponseWriter, msg string, err error) {
-	log.Printf("%s: %v", msg, err)
+func fetchError(w http.ResponseWriter, r *http.Request, msg string, err error) {
+	slog.ErrorContext(r.Context(), msg, "err", err)
 	http.Error(w, msg, grpcToHTTPStatus(err))
 }
 

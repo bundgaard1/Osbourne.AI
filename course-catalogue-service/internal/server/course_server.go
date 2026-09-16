@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	coursecatalogue "osbourne.local/course-catalogue-service/gen/course-catalogue"
 	"osbourne.local/course-catalogue-service/internal/domain"
@@ -21,7 +21,7 @@ func NewCourseServer(courseSvc *service.CourseService) *CourseServer {
 }
 
 func (s *CourseServer) GetCourse(ctx context.Context, req *coursecatalogue.GetCourseRequest) (*coursecatalogue.GetCourseResponse, error) {
-	log.Printf("Received gRPC request for course_id: %s", req.GetCourseId())
+	slog.InfoContext(ctx, "received get_course request", "course_id", req.GetCourseId())
 
 	course, err := s.courseSvc.GetCourse(ctx, req.GetCourseId())
 	if err != nil {
@@ -36,7 +36,7 @@ func (s *CourseServer) GetCourse(ctx context.Context, req *coursecatalogue.GetCo
 }
 
 func (s *CourseServer) ListCourses(ctx context.Context, req *coursecatalogue.ListCoursesRequest) (*coursecatalogue.ListCoursesResponse, error) {
-	log.Printf("Received gRPC request to list courses, page: %d, page_size: %d", req.GetPage(), req.GetPageSize())
+	slog.InfoContext(ctx, "received list_courses request", "page", req.GetPage(), "page_size", req.GetPageSize())
 
 	courses, totalCount, err := s.courseSvc.ListCourses(ctx, req.GetPage(), req.GetPageSize())
 	if err != nil {
@@ -55,7 +55,7 @@ func (s *CourseServer) ListCourses(ctx context.Context, req *coursecatalogue.Lis
 }
 
 func (s *CourseServer) EnrollUser(ctx context.Context, req *coursecatalogue.EnrollUserRequest) (*coursecatalogue.EnrollUserResponse, error) {
-	log.Printf("Received gRPC request to enroll user_id: %s in course_id: %s", req.GetUserId(), req.GetCourseId())
+	slog.InfoContext(ctx, "received enroll_user request", "course_id", req.GetCourseId())
 
 	err := s.courseSvc.EnrollStudent(ctx, req.GetCourseId(), req.GetUserId())
 	if err != nil {
@@ -68,7 +68,7 @@ func (s *CourseServer) EnrollUser(ctx context.Context, req *coursecatalogue.Enro
 }
 
 func (s *CourseServer) ListEnrolledCourses(ctx context.Context, req *coursecatalogue.ListEnrolledCoursesRequest) (*coursecatalogue.ListEnrolledCoursesResponse, error) {
-	log.Printf("Received gRPC request to get enrollments for user_id: %s", req.GetUserId())
+	slog.InfoContext(ctx, "received list_enrolled_courses request")
 
 	enrolledCourses, err := s.courseSvc.GetEnrolledCoursesByUserID(ctx, req.GetUserId())
 	if err != nil {

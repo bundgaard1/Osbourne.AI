@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -36,12 +36,12 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.clients.Auth.Client.Login(r.Context(), &auth.LoginRequest{
+	resp, err := h.clients.Auth.Client.Login(h.reqIDCtx(r.Context()), &auth.LoginRequest{
 		Email:    email,
 		Password: r.FormValue("password"),
 	})
 	if err != nil {
-		log.Printf("login failed for %s: %v", email, err)
+		slog.WarnContext(r.Context(), "login failed", "email", email, "err", err)
 		renderPage(w, r, view.LoginPage(view.PageData{}, "Wrong email or password."))
 		return
 	}

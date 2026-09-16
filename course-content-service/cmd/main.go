@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"osbourne.local/auth-common"
+	authcommon "osbourne.local/auth-common"
 	coursecontent "osbourne.local/course-content-service/gen/course-content"
 	"osbourne.local/course-content-service/internal/database"
 	"osbourne.local/course-content-service/internal/repository"
@@ -18,15 +18,14 @@ import (
 )
 
 func main() {
+	authcommon.SetupLogging("course-content-service")
 
 	port := "50054"
-	if port == "" {
-		port = "50054"
-	}
 
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("Could not listen on port %s: %v", port, err)
+		slog.Error("could not listen", "port", port, "err", err)
+		os.Exit(1)
 	}
 
 	dbDir := "content-db"
@@ -36,14 +35,20 @@ func main() {
 
 	cloverdb, err := database.NewCloverDB(dbDir)
 	if err != nil {
-		log.Fatalf("Failed to connect to CloverDB: %v", err)
+		slog.Error("failed to connect to CloverDB", "err", err)
+		os.Exit(1)
 	}
 	err = database.SeedCloverData(cloverdb)
 	if err != nil {
-		log.Fatalf("Failed to seed CloverDB: %v", err)
+		slog.Error("failed to seed CloverDB", "err", err)
+		os.Exit(1)
 	}
 
-	courseContentRepo := repository.NewCloverModuleRepository(cloverdb, "modules")
+	courseContentRepo, err := repository.NewCloverModuleRepository(cloverdb, "modules")
+	if err != nil {
+		slog.Error("failed to create module repository", "err", err)
+		os.Exit(1)
+	}
 	courseContentSvc := service.NewModuleService(courseContentRepo)
 	courseContentGrpcServer := server.NewContentServer(courseContentSvc)
 
@@ -61,9 +66,10 @@ func main() {
 		courseContentGrpcServer)
 
 	go func() {
-		log.Printf("Starting gRPC server on port %s...", port)
+		slog.Info("course-content-service (gRPC) running", "port", port)
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Failed to serve gRPC server: %v", err)
+			slog.Error("failed to serve gRPC server", "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -71,7 +77,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	log.Println("Shutting down gRPC server...")
+	slog.Info("shutting down gRPC server")
 
 	done := make(chan struct{})
 	go func() {
@@ -81,10 +87,9 @@ func main() {
 
 	select {
 	case <-done:
-		log.Println("gRPC server stopped gracefully.")
+		slog.Info("gRPC server stopped gracefully")
 	case <-time.After(5 * time.Second):
-		log.Println("Timeout reached. Forcing gRPC server shutdown.")
+		slog.Warn("timeout reached, forcing gRPC server shutdown")
 		grpcServer.Stop()
 	}
-
 }

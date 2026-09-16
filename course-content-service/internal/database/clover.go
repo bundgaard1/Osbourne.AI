@@ -40,11 +40,9 @@ func SeedCloverData(db *c.DB) error {
 		return fmt.Errorf("Could not create document")
 	}
 
-	docId, err := db.InsertOne("modules", doc)
-	if err != nil {
+	if _, err := db.InsertOne("modules", doc); err != nil {
 		return fmt.Errorf("Could not insert document: %w", err)
 	}
-	fmt.Println(docId)
 
 	return nil
 }

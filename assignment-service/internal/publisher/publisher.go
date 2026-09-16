@@ -3,7 +3,7 @@ package publisher
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +13,7 @@ import (
 
 	"osbourne.local/assignment-service/gen/events"
 	"osbourne.local/assignment-service/internal/domain"
+	authcommon "osbourne.local/auth-common"
 )
 
 const (
@@ -36,6 +37,7 @@ func New(conn *rabbitmq.Conn) (*Publisher, error) {
 		rabbitmq.WithPublisherOptionsExchangeKind(ExchangeKind),
 		rabbitmq.WithPublisherOptionsExchangeDurable,
 		rabbitmq.WithPublisherOptionsExchangeDeclare,
+		rabbitmq.WithPublisherOptionsLogger(rabbitmq.Logger(authcommon.RabbitLogger{})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rabbitmq publisher: %w", err)
@@ -85,7 +87,7 @@ func (p *Publisher) PublishGradePublished(ctx context.Context, event domain.Grad
 		return fmt.Errorf("failed to publish grade.published event: %w", err)
 	}
 
-	log.Printf("[PUBLISHED] Published grade.published event for student=%s course=%s", event.StudentID, event.CourseID)
+	slog.InfoContext(ctx, "published grade.published event", "student_id", event.StudentID, "course_id", event.CourseID, "event_id", envelope.GetId())
 	return nil
 }
 

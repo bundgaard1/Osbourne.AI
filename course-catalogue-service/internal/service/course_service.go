@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,7 +58,7 @@ func (s *CourseService) EnrollStudent(ctx context.Context, courseID string, stud
 	if s.events != nil {
 		if course, gErr := s.repo.GetCourse(ctx, courseID); gErr == nil && course != nil {
 			if pubErr := s.events.PublishCourseEnrolled(ctx, studentID, course.ID, course.Code, course.Title); pubErr != nil {
-				log.Printf("Failed to publish course.enrolled event: %v", pubErr)
+				slog.WarnContext(ctx, "failed to publish course.enrolled event", "student_id", studentID, "course_id", courseID, "err", pubErr)
 			}
 		}
 	}

@@ -216,7 +216,7 @@ Supported events:
 
 **Goal:** Fulfill all non-functional requirements in the course's assessment criteria.
 
-### [ ] Step 4.1: Centralized Logging & Error Handling
+### [x] Step 4.1: Centralized Logging & Error Handling
 
 * **Action:** Ensure that all 6 Go services use structured logging (`slog` or `zap`) to `stdout`/`stderr`.
 * **Test:** Run `docker compose logs -f` and follow a request's path through the Gateway and services.
@@ -294,7 +294,7 @@ hey -n 200 -c 20 http://localhost/api/v1/courses
 - [ ] **No CI/CD pipeline** — No GitHub Actions, GitLab CI, or any automation.
 - [ ] **No linting/formatting** — No `.golangci.yml` or equivalent.
 - [ ] **No health check endpoints** — No `/healthz` on any service. No Docker health checks on Go services.
-- [ ] **No structured logging** — All services use `log.Printf`. No log levels, no correlation IDs, no JSON output. GORM `logger.Info` is active in production.
+- [x] **No structured logging** — All services now use `log/slog` with a JSON handler (via shared `auth-common.SetupLogging`) to stdout. Log levels are configurable via `LOG_LEVEL`, request IDs (`x-request-id`) and `user_id` are propagated via gRPC metadata and added to every log record. GORM and go-rabbitmq chatter is routed through slog via `auth-common.NewGormLogger` and `auth-common.RabbitLogger` — all app containers emit pure JSON (verified via `docker compose logs`).
 - [ ] **Port env var ignored** in `course-catalogue-service` and `course-content-service` — hardcoded instead of reading `os.Getenv("PORT")`.
 - [ ] **~150 lines of commented-out code** across `course-content-service` (attachment features never implemented).
 - [ ] **Alpha-stage dependency** — CloverDB is at `v2.0.0-alpha.3`. No stability guarantees for production data.

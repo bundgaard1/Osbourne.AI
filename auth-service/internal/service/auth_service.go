@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -34,7 +34,7 @@ func NewAuthService(repo domain.AccountRepository, cfg Config) *AuthService {
 func (s *AuthService) Login(ctx context.Context, email, password string) (string, *domain.UserAccount, error) {
 	account, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
-		log.Printf("login failed for %s: %v", email, err)
+		slog.WarnContext(ctx, "login failed", "email", email, "err", err)
 		return "", nil, ErrInvalidCredentials
 	}
 
@@ -48,7 +48,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 
 	now := time.Now()
 	if err := s.repo.UpdateLastLogin(ctx, account.ID, &now); err != nil {
-		log.Printf("failed to update last login for %s: %v", account.ID, err)
+		slog.WarnContext(ctx, "failed to update last login", "account_id", account.ID, "err", err)
 	}
 
 	token, err := authcommon.SignJWT(s.cfg.JWTSecret, account.ID, account.Email, string(account.Role), s.cfg.TokenTTL)

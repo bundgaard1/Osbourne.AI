@@ -53,7 +53,12 @@ func AuthInterceptor(secret string) grpc.UnaryServerInterceptor {
 			return nil, RequiresAuthentication()
 		}
 
-		return handler(WithClaims(ctx, claims), req)
+		ctx = WithClaims(ctx, claims)
+		if rids := md.Get(RequestIDMetadataKey); len(rids) > 0 {
+			ctx = WithRequestID(ctx, rids[0])
+		}
+
+		return handler(ctx, req)
 	}
 }
 

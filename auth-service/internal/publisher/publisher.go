@@ -3,7 +3,7 @@ package publisher
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	authcommon "osbourne.local/auth-common"
 	"osbourne.local/auth-service/gen/events"
 	"osbourne.local/auth-service/internal/domain"
 )
@@ -33,6 +34,7 @@ func New(conn *rabbitmq.Conn) (*Publisher, error) {
 		rabbitmq.WithPublisherOptionsExchangeKind(ExchangeKind),
 		rabbitmq.WithPublisherOptionsExchangeDurable,
 		rabbitmq.WithPublisherOptionsExchangeDeclare,
+		rabbitmq.WithPublisherOptionsLogger(rabbitmq.Logger(authcommon.RabbitLogger{})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rabbitmq publisher: %w", err)
@@ -80,7 +82,7 @@ func (p *Publisher) PublishAccountCreated(ctx context.Context, event domain.Acco
 		return fmt.Errorf("failed to publish account.created event: %w", err)
 	}
 
-	log.Printf("[PUBLISHED] Published account.created event for account=%s", event.AccountID)
+	slog.InfoContext(ctx, "published account.created event", "account_id", event.AccountID, "event_id", envelope.GetId())
 	return nil
 }
 

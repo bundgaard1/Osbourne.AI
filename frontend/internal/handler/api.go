@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -43,7 +43,7 @@ func (h *Handler) HandleEnrollCourse(w http.ResponseWriter, r *http.Request) {
 		})
 
 	if enrollErr != nil {
-		log.Printf("gRPC call EnrollUser failed: %v", enrollErr)
+		slog.WarnContext(r.Context(), "gRPC call EnrollUser failed", "course_id", courseID, "err", enrollErr)
 		writeJSON(w, grpcToHTTPStatus(enrollErr), enrollResponse{Success: false, Message: "Could not complete enrollment"})
 		return
 	}
@@ -69,7 +69,7 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 
 	file, header, err := r.FormFile("submission_file")
 	if err != nil {
-		log.Printf("failed to read submission file: %v", err)
+		slog.WarnContext(r.Context(), "failed to read submission file", "err", err)
 		writeJSON(w, http.StatusBadRequest, enrollResponse{Success: false, Message: "Missing submission file"})
 		return
 	}
@@ -79,7 +79,7 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 
 	stream, err := h.clients.Assignment.Client.SubmitAssignment(h.authCtx(r.Context()))
 	if err != nil {
-		log.Printf("gRPC call SubmitAssignment (open stream) failed: %v", err)
+		slog.WarnContext(r.Context(), "gRPC call SubmitAssignment (open stream) failed", "err", err)
 		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not start upload"})
 		return
 	}
@@ -94,7 +94,7 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 			},
 		},
 	}); err != nil {
-		log.Printf("gRPC call SubmitAssignment (send metadata) failed: %v", err)
+		slog.WarnContext(r.Context(), "gRPC call SubmitAssignment (send metadata) failed", "assignment_id", assignmentID, "err", err)
 		writeJSON(w, http.StatusBadGateway, enrollResponse{Success: false, Message: "Could not upload file"})
 		return
 	}
@@ -106,7 +106,7 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 			if sendErr := stream.Send(&assignment.SubmitAssignmentRequest{
 				Payload: &assignment.SubmitAssignmentRequest_Chunk{Chunk: buf[:n]},
 			}); sendErr != nil {
-				log.Printf("gRPC call SubmitAssignment (send chunk) failed: %v", sendErr)
+				slog.WarnContext(r.Context(), "gRPC call SubmitAssignment (send chunk) failed", "err", sendErr)
 				writeJSON(w, http.StatusBadGateway, enrollResponse{Success: false, Message: "Could not upload file"})
 				return
 			}
@@ -115,14 +115,14 @@ func (h *Handler) HandleSubmitAssignment(w http.ResponseWriter, r *http.Request)
 			break
 		}
 		if readErr != nil {
-			log.Printf("failed while reading submission file: %v", readErr)
+			slog.WarnContext(r.Context(), "failed while reading submission file", "err", readErr)
 			writeJSON(w, http.StatusBadGateway, enrollResponse{Success: false, Message: "Could not upload file"})
 			return
 		}
 	}
 
 	if _, err := stream.CloseAndRecv(); err != nil {
-		log.Printf("gRPC call SubmitAssignment (finish) failed: %v", err)
+		slog.WarnContext(r.Context(), "gRPC call SubmitAssignment (finish) failed", "assignment_id", assignmentID, "err", err)
 		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not submit assignment"})
 		return
 	}
@@ -137,23 +137,19 @@ func (h *Handler) HandleDownloadSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	userID := UserFromContext(r.Context()).ID
-	_ = userID
-
 	resp, err := h.clients.Assignment.Client.DownloadSubmission(h.authCtx(r.Context()),
 		&assignment.DownloadSubmissionRequest{
 			SubmissionId: submissionID,
 		})
 
 	if err != nil {
-		log.Printf("gRPC call DownloadSubmission failed: %v", err)
+		slog.WarnContext(r.Context(), "gRPC call DownloadSubmission failed", "submission_id", submissionID, "err", err)
 		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not download submission"})
 		return
 	}
 
 	msg, err := resp.Recv()
-
-	fmt.Println(msg, err)
+	slog.DebugContext(r.Context(), "received download response", "submission_id", submissionID)
 
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -179,11 +175,11 @@ func (h *Handler) HandleDownloadSubmission(w http.ResponseWriter, r *http.Reques
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			log.Printf("Error receiving chunk: %v", err)
+			slog.WarnContext(r.Context(), "error receiving chunk", "submission_id", submissionID, "err", err)
 			return
 		}
 		if _, writeErr := w.Write(chunk.GetChunk()); writeErr != nil {
-			log.Printf("Error writing chunk to response: %v", writeErr)
+			slog.WarnContext(r.Context(), "error writing chunk to response", "submission_id", submissionID, "err", writeErr)
 			return
 		}
 	}
@@ -219,7 +215,7 @@ func (h *Handler) HandleGradeSubmission(w http.ResponseWriter, r *http.Request) 
 		})
 
 	if err != nil {
-		log.Printf("gRPC call GradeSubmission failed: %v", err)
+		slog.WarnContext(r.Context(), "gRPC call GradeSubmission failed", "submission_id", submissionID, "err", err)
 		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not grade submission"})
 		return
 	}
@@ -237,7 +233,7 @@ func (h *Handler) HandleMarkNotificationRead(w http.ResponseWriter, r *http.Requ
 	resp, err := h.clients.Notification.Client.MarkNotificationAsRead(h.authCtx(r.Context()),
 		&notification.MarkNotificationAsReadRequest{NotificationId: notificationID})
 	if err != nil {
-		log.Printf("gRPC call MarkNotificationAsRead failed: %v", err)
+		slog.WarnContext(r.Context(), "gRPC call MarkNotificationAsRead failed", "notification_id", notificationID, "err", err)
 		writeJSON(w, grpcToHTTPStatus(err), enrollResponse{Success: false, Message: "Could not mark notification as read"})
 		return
 	}
@@ -254,7 +250,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		log.Printf("failed to encode JSON response: %v", err)
+		slog.Warn("failed to encode JSON response", "err", err)
 	}
 }
 

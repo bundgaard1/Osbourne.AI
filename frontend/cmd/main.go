@@ -2,16 +2,19 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	authcommon "osbourne.local/auth-common"
 	"osbourne.local/frontend/internal/app"
 )
 
 func main() {
+	authcommon.SetupLogging("frontend")
+
 	cfg := app.Config{
 		Port:                       getEnv("PORT", "8080"),
 		AuthServiceAddr:            getEnv("AUTH_SERVICE_ADDR", "dns:///auth-service:50056"),
@@ -25,12 +28,14 @@ func main() {
 
 	application, err := app.NewApp(cfg)
 	if err != nil {
-		log.Fatalf("Could not create frontend app: %v", err)
+		slog.Error("could not create frontend app", "err", err)
+		os.Exit(1)
 	}
 
 	go func() {
 		if err := application.Run(); err != nil {
-			log.Fatalf("Error while running frontend: %v", err)
+			slog.Error("error while running frontend", "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -38,7 +43,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	log.Println("Shutdown signal received...")
+	slog.Info("shutdown signal received")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

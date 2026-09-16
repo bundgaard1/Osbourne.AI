@@ -3,7 +3,7 @@ package publisher
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	authcommon "osbourne.local/auth-common"
 	"osbourne.local/course-catalogue-service/gen/events"
 )
 
@@ -36,6 +37,7 @@ func New(conn *rabbitmq.Conn) (*Publisher, error) {
 		rabbitmq.WithPublisherOptionsExchangeKind(ExchangeKind),
 		rabbitmq.WithPublisherOptionsExchangeDurable,
 		rabbitmq.WithPublisherOptionsExchangeDeclare,
+		rabbitmq.WithPublisherOptionsLogger(rabbitmq.Logger(authcommon.RabbitLogger{})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rabbitmq publisher: %w", err)
@@ -83,7 +85,7 @@ func (p *Publisher) PublishCourseEnrolled(ctx context.Context, studentID, course
 		return fmt.Errorf("failed to publish course.enrolled event: %w", err)
 	}
 
-	log.Printf("[PUBLISHED] Published course.enrolled event for student=%s course=%s", studentID, courseID)
+	slog.InfoContext(ctx, "published course.enrolled event", "student_id", studentID, "course_id", courseID, "event_id", envelope.GetId())
 	return nil
 }
 

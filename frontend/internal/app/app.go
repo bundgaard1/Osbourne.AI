@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	grpcclient "osbourne.local/frontend/internal/clients/grpc"
@@ -55,7 +55,7 @@ func NewApp(cfg Config) (*App, error) {
 }
 
 func (a *App) Run() error {
-	log.Printf("Frontend Web Service running on port :%s...", a.cfg.Port)
+	slog.Info("frontend web service running", "port", a.cfg.Port)
 	if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

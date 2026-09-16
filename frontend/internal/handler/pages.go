@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -26,7 +26,7 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		fetchError(w, "Could not fetch the user's enrollments", err)
+		fetchError(w, r, "Could not fetch the user's enrollments", err)
 		return
 	}
 
@@ -47,7 +47,7 @@ func (h *Handler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 
 	prof := domain.Profile{ID: currentUser.ID, Name: currentUser.Name}
 	if err != nil {
-		log.Printf("Could not fetch the user's profile: %v", err)
+		slog.WarnContext(r.Context(), "could not fetch the user's profile", "err", err)
 	} else {
 		prof = toDomainProfile(res)
 	}
@@ -66,7 +66,7 @@ func (h *Handler) HandleNotifications(w http.ResponseWriter, r *http.Request) {
 		&notification.NotificationsRequest{UserId: user.ID},
 	)
 	if err != nil {
-		fetchError(w, "Could not fetch notifications", err)
+		fetchError(w, r, "Could not fetch notifications", err)
 		return
 	}
 
@@ -87,7 +87,7 @@ func (h *Handler) HandleCourseCatalog(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		fetchError(w, "Could not fetch course catalog", err)
+		fetchError(w, r, "Could not fetch course catalog", err)
 		return
 	}
 
@@ -107,7 +107,7 @@ func (h *Handler) HandleCoursePage(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		fetchError(w, "Could not fetch course details", err)
+		fetchError(w, r, "Could not fetch course details", err)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (h *Handler) HandleCoursePage(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		fetchError(w, "Could not fetch course modules", err)
+		fetchError(w, r, "Could not fetch course modules", err)
 		return
 	}
 	modules := toDomainModules(res2.GetModules())
@@ -127,7 +127,7 @@ func (h *Handler) HandleCoursePage(w http.ResponseWriter, r *http.Request) {
 		&assignment.GetCourseAssignmentsRequest{CourseId: courseID},
 	)
 	if err != nil {
-		fetchError(w, "Could not fetch course assignments", err)
+		fetchError(w, r, "Could not fetch course assignments", err)
 		return
 	}
 	assignments := toDomainAssignments(res3.GetAssignments())
@@ -153,7 +153,7 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		fetchError(w, "Could not fetch assignment details", err)
+		fetchError(w, r, "Could not fetch assignment details", err)
 		return
 	}
 
@@ -166,7 +166,7 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 			&assignment.ListMySubmissionsRequest{AssignmentId: assignmentID},
 		)
 		if err != nil {
-			fetchError(w, "Could not fetch your submissions", err)
+			fetchError(w, r, "Could not fetch your submissions", err)
 			return
 		}
 		submissions = toDomainSubmissions(myRes.GetSubmissions())
@@ -176,7 +176,7 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 			&assignment.ListSubmissionsRequest{AssignmentId: assignmentID},
 		)
 		if err != nil {
-			fetchError(w, "Could not fetch assignment submissions", err)
+			fetchError(w, r, "Could not fetch assignment submissions", err)
 			return
 		}
 		submissions = toDomainSubmissions(submissionsRes.GetSubmissions())

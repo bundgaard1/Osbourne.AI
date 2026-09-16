@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
-	"osbourne.local/auth-common"
+	authcommon "osbourne.local/auth-common"
 	"osbourne.local/notification-service/gen/notification"
 	"osbourne.local/notification-service/internal/consumer"
 	"osbourne.local/notification-service/internal/database"
@@ -21,6 +21,8 @@ import (
 )
 
 func main() {
+	authcommon.SetupLogging("notification-service")
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "50052"
@@ -28,7 +30,8 @@ func main() {
 
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		log.Fatalf("Could not listen on port :%s: %v", port, err)
+		slog.Error("could not listen", "port", port, "err", err)
+		os.Exit(1)
 	}
 
 	dbPath := os.Getenv("DB_PATH")
@@ -38,7 +41,8 @@ func main() {
 
 	db, err := database.NewGORMDB(dbPath)
 	if err != nil {
-		log.Fatalf("Database error: %v", err)
+		slog.Error("database error", "err", err)
+		os.Exit(1)
 	}
 
 	notificationRepo := repository.NewGORMNotificationRepository(db)
@@ -57,22 +61,24 @@ func main() {
 	}
 	conn, err := rabbitmq.NewConn(amqpURL)
 	if err != nil {
-		log.Fatalf("Error creating RabbitMQ connection: %v", err)
+		slog.Error("error creating RabbitMQ connection", "err", err)
+		os.Exit(1)
 	}
 	defer conn.Close()
 
 	rmqConsumer, err := consumer.NewNotificationConsumer(conn, notificationSvc)
 	if err != nil {
-		log.Fatalf("Error creating RabbitMQ Consumer: %v", err)
+		slog.Error("error creating RabbitMQ consumer", "err", err)
+		os.Exit(1)
 	}
 	defer rmqConsumer.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		log.Println("Starting RabbitMQ Consumer worker...")
+		slog.Info("starting RabbitMQ consumer worker")
 		if err := rmqConsumer.Start(ctx); err != nil {
-			log.Printf("RabbitMQ Consumer stopped with error: %v", err)
+			slog.Error("rabbitMQ consumer stopped with error", "err", err)
 		}
 	}()
 
@@ -85,9 +91,10 @@ func main() {
 		notificationGrpcServer)
 
 	go func() {
-		log.Printf("notification-service (gRPC) running on port :%s...", port)
+		slog.Info("notification-service (gRPC) running", "port", port)
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Error while running gRPC server: %v", err)
+			slog.Error("error while running gRPC server", "err", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -95,7 +102,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	log.Println("Received shutdown signal. Shutting down gracefully...")
+	slog.Info("received shutdown signal, shutting down gracefully")
 
 	done := make(chan struct{})
 	go func() {
@@ -105,9 +112,9 @@ func main() {
 
 	select {
 	case <-done:
-		log.Println("gRPC server shut down gracefully.")
+		slog.Info("gRPC server shut down gracefully")
 	case <-time.After(5 * time.Second):
-		log.Println("Timeout exceeded - forcing shutdown.")
+		slog.Warn("timeout exceeded, forcing shutdown")
 		grpcServer.Stop()
 	}
 }

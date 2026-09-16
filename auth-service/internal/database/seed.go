@@ -1,7 +1,7 @@
 package database
 
 import (
-	"log"
+	"log/slog"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -39,7 +39,7 @@ func SeedData(db *gorm.DB) []domain.AccountCreatedEvent {
 	for _, seed := range demoAccounts {
 		hash, err := bcrypt.GenerateFromPassword([]byte(seed.Password), bcrypt.DefaultCost)
 		if err != nil {
-			log.Printf("Failed to hash password for %s: %v", seed.Email, err)
+			slog.Error("failed to hash password", "email", seed.Email, "err", err)
 			continue
 		}
 
@@ -52,7 +52,7 @@ func SeedData(db *gorm.DB) []domain.AccountCreatedEvent {
 		}
 
 		if err := db.Create(&account).Error; err != nil {
-			log.Printf("Failed to seed account %s: %v", seed.Email, err)
+			slog.Error("failed to seed account", "email", seed.Email, "err", err)
 			continue
 		}
 
