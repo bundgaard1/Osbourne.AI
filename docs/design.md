@@ -6,47 +6,46 @@ Design Documentation
 Osborne.AI is a Student Services Dashboard built with a microservices architecture. A single **Frontend UI** is the only client-facing application; it talks to the backend services over gRPC, and the services coordinate asynchronously through RabbitMQ events. The **API Gateway** (Nginx) is the only ingress into the platform.
 
 ```mermaid
+---
+config:
+  theme: dark
+---
 graph LR;
     U[Browser] -->|HTTP/80| B[API Gateway - Nginx]
 
-    subgraph "Frontend"
+    subgraph FE ["Frontend"]
         F[Frontend UI :8080]
     end
 
-    subgraph "Backend Services (exposed only on the docker network)"
-        H[AUTH Service :50056]
-        C[Profile Service :50051]
-        G[Notification Service :50052]
-        D[Course Catalogue Service :50053]
-        E[Course Content Service :50054]
-        J[Assignment Service :50055]
+    subgraph BE ["Backend Services (exposed only on the docker network)"]
+        direction TD
+        subgraph Col1 [" "]
+            direction LR
+            H["AUTH Service <br/> :50056"]
+            C["Profile Service <br/> :50051"]
+            G["Notification Service <br/> :50052"]
+        end
+
+        subgraph Col2 [" "]
+            direction LR
+            D["Course Catalogue Service <br/> :50053"]
+            E["Course Content Service <br/> :50054"]
+            J["Assignment Service <br/> :50055"]
+        end
     end
 
-    B -->|proxy /| F
-    F -->|gRPC| H
-    F -->|gRPC| C
-    F -->|gRPC| G
-    F -->|gRPC| D
-    F -->|gRPC| E
-    F -->|gRPC| J
-
-    subgraph "Databases (database-per-service)"
-        C --- I[(profiles.db - SQLite)]
-        D --- K[(course-catalogue.db - SQLite)]
-        E --- L[(course-content - CloverDB)]
-        J --- M[(assignment.db - SQLite)]
-        G --- N[(notification.db - SQLite)]
-        H --- O[(auth.db - SQLite)]
-    end
-
-    subgraph "Message Queue (async events)"
+    subgraph MQ ["Message Queue (async events)"]
         Q[("RabbitMQ - university.events (topic, durable)")]
-        H -->|account.created| Q
-        D -->|course.enrolled| Q
-        J -->|grade.published| Q
-        Q -->|account.created| C
-        Q -->|account.created / course.* / grade.*| G
     end
+
+    %% Node to Subgraph
+    B -->|proxy| FE
+
+    %% Node inside Subgraph to Node inside Subgraph
+    FE -->|gRPC| BE
+
+    %% Subgraph to Subgraph
+    BE -.->|Events| MQ
 ```
 
 # Communication

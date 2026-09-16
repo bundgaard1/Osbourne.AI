@@ -84,10 +84,6 @@ func TestCloverModuleRepository_CreateAndGetModule(t *testing.T) {
 	if !fetched.UpdatedAt.Equal(inputModule.UpdatedAt) {
 		t.Errorf("expected UpdatedAt %v, got %v", inputModule.UpdatedAt, fetched.UpdatedAt)
 	}
-
-	// if len(fetched.Attachments) != len(inputModule.Attachments) {
-	// 	t.Fatalf("expected %d attachments, got %d", len(inputModule.Attachments), len(fetched.Attachments))
-	// }
 }
 
 func TestCloverModuleRepository_ListModulesByCourseID(t *testing.T) {
