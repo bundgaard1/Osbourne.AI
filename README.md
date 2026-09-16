@@ -9,8 +9,8 @@ Run the following commands to set up the project:
 2. Navigate to the project directory
 3. Run the following commands:
 ```bash
-    make generate # Generates protobufs and frontend
-    docker compose up # Starts the services in Docker containers
+make generate # Generates protobufs and frontend
+docker compose up # Starts the services in Docker containers
 ```
 4. Navigate to `http://localhost:8080` in your web browser to access the Student Services Dashboard.
 

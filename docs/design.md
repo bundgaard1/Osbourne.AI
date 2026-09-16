@@ -5,8 +5,8 @@ Design Documentation
 
 Below is a high-level overview of the design and architecture of the Osborne.AI project.
 
-```m̀ermaid
-graph TD;
+```mermaid
+graph LR;
     subgraph "Frontend"
         A[Frontend UI] -->|HTTP| B[API Gateway]
     end
