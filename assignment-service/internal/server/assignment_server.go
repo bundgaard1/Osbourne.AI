@@ -15,7 +15,7 @@ import (
 	"osbourne.local/assignment-service/internal/domain"
 	"osbourne.local/assignment-service/internal/repository"
 	"osbourne.local/assignment-service/internal/service"
-	"osbourne.local/auth-common"
+	authcommon "osbourne.local/auth-common"
 )
 
 type AssignmentServer struct {
