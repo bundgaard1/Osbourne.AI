@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package course_content.v1;
+package course_content;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "osbourne.local/course-content-service/gen/v1;coursecontentv1";
+option go_package = "osbourne.local/course-content-service/gen/course-content;coursecontent";
 
 service CourseContentService {
   rpc CreateModule(CreateModuleRequest) returns (CreateModuleResponse);

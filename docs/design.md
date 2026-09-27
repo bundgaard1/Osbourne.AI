@@ -134,6 +134,22 @@ A single trace can be reconstructed by grepping the whole log stream for one `re
 
 ## Keeping the log stream pure JSON
 
+Every process emits **JSON structured logs** to stdout via `log/slog`:
+
+```json
+{"time":"...","level":"INFO","msg":"received enroll_user request","service":"course-catalogue-service","course_id":"1","request_id":"...","user_id":"12345"}
+```
+
+Log lines are enriched with:
+
+- `service` — which component logged it.
+- `request_id` — a correlation ID propagated across the whole stack (Nginx `$request_id` → `X-Request-ID` header → frontend gRPC metadata → downstream services). Whole traces can be followed by grepping on one ID.
+- `user_id` — injected from the verified JWT claims.
+
+Per-service log level is configurable via the `LOG_LEVEL` env var (`debug | info | warn | error`); GORM and go-rabbitmq chatter is routed through `slog` so the stream stays pure JSON.
+
+## Logging adapters
+
 - `RabbitLogger` implements go-rabbitmq's `Logger` interface and mirrors its console chatter through `slog`.
 - `GormLogger` is a slog-backed GORM logger that emits only genuine errors (dropping the expected `RecordNotFound` lookups) instead of raw SQL at production levels.
 
@@ -170,7 +186,7 @@ Notification Service (async, correlates on `event_id` instead of `request_id`):
 | `auth.AuthService` | `Login`, `ValidateToken` |
 | `user.profile.ProfileService` | `GetUserProfile` |
 | `coursecatalogue.CourseCatalogueService` | `GetCourse`, `ListCourses`, `EnrollUser`, `ListEnrolledCourses` |
-| `course_content.v1.CourseContentService` | `CreateModule`, `GetModule`, `UpdateModule`, `DeleteModule`, `ListModulesByCourseID` |
+| `course_content.CourseContentService` | `CreateModule`, `GetModule`, `UpdateModule`, `DeleteModule`, `ListModulesByCourseID` |
 | `notification.catalogue.NotificationService` | `GetUserNotifications`, `MarkNotificationAsRead` |
 | `assignment.AssignmentService` | `CreateAssignment`, `GetCourseAssignments`, `GetAssignment`, `GetSubmission`, `ListSubmissions`, `ListMySubmissions`, `GradeSubmission`, `SubmitAssignment` (client streaming), `DownloadSubmission` (server streaming) |
 

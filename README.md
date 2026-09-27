@@ -53,24 +53,8 @@ The platform is split into small, independently deployable services:
 
 Shared code (logging, JWT parsing, gRPC interceptors, request-ID correlation) lives in the `common` module.
 
-## Observability
-
-Every process emits **JSON structured logs** to stdout via `log/slog`:
-
-```json
-{"time":"...","level":"INFO","msg":"received enroll_user request","service":"course-catalogue-service","course_id":"1","request_id":"...","user_id":"12345"}
-```
-
-Log lines are enriched with:
-
-- `service` — which component logged it.
-- `request_id` — a correlation ID propagated across the whole stack (Nginx `$request_id` → `X-Request-ID` header → frontend gRPC metadata → downstream services). Whole traces can be followed by grepping on one ID.
-- `user_id` — injected from the verified JWT claims.
-
-Per-service log level is configurable via the `LOG_LEVEL` env var (`debug | info | warn | error`); GORM and go-rabbitmq chatter is routed through `slog` so the stream stays pure JSON.
-
 ## Docs
 
 - [Design document](docs/design.md) — architecture, isolation, service endpoints, event catalog, and request correlation.
 - [Plan / issues](docs/plan.md) — the implementation plan and known issues/Deltas.
-- [Notes](docs/notes.md) — additional project notes.
+- [Notes](docs/notes.md) — additional project notes.    container_name: osbourne-rabbitmq

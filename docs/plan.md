@@ -243,7 +243,7 @@ docker compose up -d --scale profile-service=3 --scale notification-service=2
 
 ```
 
-* **Test:** Run `docker compose ps` and confirm that all instances run on the shared Docker network.
+* **Test:** Run `docker compose ps` and confirm that all instances run on the shared Docker network
 
 ### [ ] Step 5.2: Gateway Round-Robin Load Balancing
 
@@ -267,6 +267,75 @@ docker compose up -d --scale profile-service=3 --scale notification-service=2
 hey -n 200 -c 20 http://localhost/api/v1/courses
 ```
 --- 
+
+## [ ] Phase 6: Migration REST API to gRPC
+
+# Migration Plan: Microservice RESTful APIs via grpc-gateway
+
+## Phase 1: Tooling & Protobuf Updates
+1. **Toolchain Setup**:
+   - Install `protoc-gen-grpc-gateway` and `protoc-gen-openapiv2`.
+   - Vend Google API proto dependencies (`google/api/annotations.proto`, `google/api/http.proto`).
+2. **Annotate Service Protobufs**:
+   - Add HTTP annotations (`google.api.http`) across service `.proto` files:
+     - **Auth**: `POST /api/v1/auth/login`, `POST /api/v1/auth/validate`
+     - **Profile**: `GET /api/v1/profile`
+     - **Course Catalogue**: `GET /api/v1/courses`, `GET /api/v1/courses/{id}`, `POST /api/v1/courses/{course_id}/enroll`
+     - **Course Content**: `GET /api/v1/courses/{course_id}/modules`, `POST /api/v1/courses/{course_id}/modules`
+     - **Assignments**: `GET /api/v1/courses/{course_id}/assignments`, `GET /api/v1/assignments/{id}`, `POST /api/v1/assignments/{id}/grade`
+     - **Notifications**: `GET /api/v1/notifications`, `PATCH /api/v1/notifications/{id}/read`
+3. **Regenerate Code**:
+   - Update `buf` or `protoc` build scripts to compile `*.pb.gw.go` stubs alongside `*.pb.go` and `*_grpc.pb.go`.
+
+---
+
+## Phase 2: Common Library & Middleware
+1. **Metadata & Header Propagation**:
+   - In `common`, implement a custom `runtime.HeaderMatcherFunc` for `runtime.WithIncomingHeaderMatcher`.
+   - Map `Authorization` and `X-Request-ID` from incoming HTTP headers into gRPC incoming context metadata.
+2. **Error Translation**:
+   - Configure `runtime.WithErrorHandler` to translate gRPC error codes (`NotFound`, `Unauthenticated`, `PermissionDenied`, etc.) into standard HTTP status codes (404, 401, 403) with consistent JSON payloads:
+     ```json
+     { "code": 404, "message": "resource not found" }
+     ```
+
+---
+
+## Phase 3: Service-Level Gateway Listeners
+1. **Dual-Listener Server Setup (`main.go`)**:
+   - Run the native gRPC server (ports 50051–50056) in a background goroutine.
+   - Run an HTTP server on a standardized internal port (`:8080`) using `runtime.NewServeMux`.
+   - Register gateway handlers using `Register<Service>HandlerFromEndpoint(...)` pointing to `localhost:<grpc-port>`.
+2. **Dedicated Handlers for File Streaming (Assignment Service)**:
+   - Mount custom `http.HandlerFunc` routes directly on the HTTP server for `/api/v1/assignments/{id}/submit` and `/download` to avoid JSON base64 overhead for multi-part file uploads.
+3. **Docker Compose Updates**:
+   - Expose port `:8080` internally on the Docker bridge network across all backend services.
+
+---
+
+## Phase 4: API Gateway (Nginx) Route Realignment
+1. **Route Mapping in `nginx.conf`**:
+   - Route `/api/v1/auth/` → `http://auth-service:8080`
+   - Route `/api/v1/profile` → `http://profile-service:8080`
+   - Route `/api/v1/courses` → `http://course-catalogue-service:8080`
+   - Route `/api/v1/course-content/` → `http://course-content-service:8080`
+   - Route `/api/v1/assignments/` → `http://assignment-service:8080`
+   - Route `/api/v1/notifications/` → `http://notification-service:8080`
+   - Route `/` → `http://frontend:8080` (fallback for SSR UI & static files)
+2. **Header Passthrough**:
+   - Retain `proxy_set_header X-Request-ID $request_id;` and `proxy_set_header Host $host;`.
+
+---
+
+## Phase 5: Frontend Decoupling & Verification
+1. **Remove Frontend Proxies**:
+   - Strip proxy endpoints from the Chi router (`/api/courses/enroll`, `/api/submissions/...`, etc.).
+2. **Update Client-Side Interactions**:
+   - Switch browser fetch/AJAX calls and form submissions to call the `/api/v1/*` routes on Nginx directly.
+   - If using `HttpOnly` session cookies, configure Nginx to extract `$cookie_session_token` into `Authorization: Bearer ...` before forwarding upstream.
+3. **End-to-End Tracing Verification**:
+   - Send requests across the new REST routes.
+   - Confirm stdout JSON logs in downstream services and RabbitMQ handlers retain identical `request_id` and `user_id` values.
 
 ## Issues and Additional Features
 
