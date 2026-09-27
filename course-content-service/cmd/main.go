@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"os"
@@ -8,7 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"osbourne.local/common"
 	coursecontent "osbourne.local/course-content-service/gen/course-content"
 	"osbourne.local/course-content-service/internal/database"
@@ -20,7 +24,14 @@ import (
 func main() {
 	common.SetupLogging("course-content-service")
 
-	port := "50054"
+	// Read from the environment like every other service. This was hardcoded to
+	// 50054, which meant the REST listener could not find the gRPC server when
+	// compose mapped the service to a different port - and the self-dial below
+	// is exactly what depends on the two agreeing.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "50054"
+	}
 
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
@@ -76,11 +87,36 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback, so browser
+	// traffic still passes common.AuthInterceptor.
+	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
+		return coursecontent.RegisterCourseContentServiceHandlerFromEndpoint(
+			context.Background(), mux, "localhost:"+port,
+			[]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+		)
+	})
+	if err != nil {
+		slog.Error("could not start the course content REST gateway", "err", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			slog.Error("error while running the REST server", "err", err)
+			os.Exit(1)
+		}
+	}()
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	slog.Info("shutting down gRPC server")
+	slog.Info("shutting down")
+
+	// REST first: in-flight requests are still waiting on a loopback gRPC call.
+	if err := gateway.ShutdownWithTimeout(); err != nil {
+		slog.Warn("REST listener did not drain cleanly", "err", err)
+	}
 
 	done := make(chan struct{})
 	go func() {

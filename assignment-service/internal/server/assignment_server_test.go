@@ -6,10 +6,12 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -21,6 +23,21 @@ import (
 	"osbourne.local/assignment-service/internal/service"
 	"osbourne.local/common"
 )
+
+// testSecret signs the tokens these tests attach, so they go through the same
+// ParseJWT path production uses.
+const testSecret = "assignment-test-secret"
+
+// authedCtx returns a context carrying a bearer token for userID, which is what
+// the stream interceptor requires before it will let a call through.
+func authedCtx(t *testing.T, userID string) context.Context {
+	t.Helper()
+	token, err := common.SignJWT(testSecret, userID, userID+"@osbourne.local", "student", time.Hour)
+	if err != nil {
+		t.Fatalf("sign jwt for %s: %v", userID, err)
+	}
+	return metadata.AppendToOutgoingContext(context.Background(), common.MetadataKey, "Bearer "+token)
+}
 
 func startAssignmentServer(t *testing.T) (assignmentpb.AssignmentServiceClient, *repository.GORMSubmissionRepository, *repository.LocalFileStorage) {
 	t.Helper()
@@ -40,7 +57,13 @@ func startAssignmentServer(t *testing.T) (assignmentpb.AssignmentServiceClient, 
 	submissionRepo := repository.NewGORMSubmissionRepository(db)
 	svc := service.NewAssignmentService(assignmentRepo, submissionRepo, storage, nil)
 
-	grpcServer := grpc.NewServer()
+	// Installed exactly as cmd/main.go does it. SubmitAssignment now reads the
+	// uploader from the token in the stream context, so a test server without
+	// this interceptor would be testing a configuration that cannot run in
+	// production.
+	grpcServer := grpc.NewServer(
+		grpc.ChainStreamInterceptor(common.AuthStreamInterceptor(testSecret)),
+	)
 	assignmentpb.RegisterAssignmentServiceServer(grpcServer, server.NewAssignmentServer(svc))
 
 	bufnet := bufconn.Listen(1024 * 1024)
@@ -79,7 +102,9 @@ func createUploadedSubmission(t *testing.T, client assignmentpb.AssignmentServic
 		t.Fatalf("CreateAssignment failed: %v", err)
 	}
 
-	stream, err := client.SubmitAssignment(ctx)
+	// The uploader comes from this token, not from the metadata below, so the
+	// student_id field is gone from the request on purpose.
+	stream, err := client.SubmitAssignment(authedCtx(t, "student_1"))
 	if err != nil {
 		t.Fatalf("SubmitAssignment failed to open stream: %v", err)
 	}
@@ -88,7 +113,6 @@ func createUploadedSubmission(t *testing.T, client assignmentpb.AssignmentServic
 		Payload: &assignmentpb.SubmitAssignmentRequest_Metadata{
 			Metadata: &assignmentpb.SubmissionMetadata{
 				AssignmentId: created.GetAssignment().GetId(),
-				StudentId:    "student_1",
 				Filename:     "answer.pdf",
 				Size:         int64(len(content)),
 			},
@@ -122,7 +146,7 @@ func createUploadedSubmission(t *testing.T, client assignmentpb.AssignmentServic
 func collectDownload(t *testing.T, client assignmentpb.AssignmentServiceClient, submissionID string) (*assignmentpb.DownloadSubmissionMetadata, []byte) {
 	t.Helper()
 
-	stream, err := client.DownloadSubmission(context.Background(),
+	stream, err := client.DownloadSubmission(authedCtx(t, "student_1"),
 		&assignmentpb.DownloadSubmissionRequest{SubmissionId: submissionID})
 	if err != nil {
 		t.Fatalf("DownloadSubmission failed to open stream: %v", err)
@@ -178,7 +202,7 @@ func TestDownloadSubmissionEndToEnd(t *testing.T) {
 func TestDownloadSubmissionNotFound(t *testing.T) {
 	client, _, _ := startAssignmentServer(t)
 
-	stream, err := client.DownloadSubmission(context.Background(),
+	stream, err := client.DownloadSubmission(authedCtx(t, "student_1"),
 		&assignmentpb.DownloadSubmissionRequest{SubmissionId: "does-not-exist"})
 	if err != nil {
 		t.Fatalf("DownloadSubmission failed to open stream: %v", err)
@@ -208,7 +232,7 @@ func TestDownloadSubmissionMissingFile(t *testing.T) {
 		t.Fatalf("failed to remove file from storage: %v", err)
 	}
 
-	stream, err := client.DownloadSubmission(context.Background(),
+	stream, err := client.DownloadSubmission(authedCtx(t, "student_1"),
 		&assignmentpb.DownloadSubmissionRequest{SubmissionId: sub.GetId()})
 	if err != nil {
 		t.Fatalf("DownloadSubmission failed to open stream: %v", err)

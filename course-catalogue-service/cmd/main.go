@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"os"
@@ -8,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"osbourne.local/common"
 	coursecatalogue "osbourne.local/course-catalogue-service/gen/course-catalogue"
 	"osbourne.local/course-catalogue-service/internal/database"
@@ -94,11 +97,38 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback, so browser
+	// traffic still passes common.AuthInterceptor and arrives with claims in
+	// context - which is what /api/enrollments and /api/enrollments/me rely on
+	// to know who is calling.
+	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
+		return coursecatalogue.RegisterCourseCatalogueServiceHandlerFromEndpoint(
+			context.Background(), mux, "localhost:"+port,
+			[]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+		)
+	})
+	if err != nil {
+		slog.Error("could not start the course catalogue REST gateway", "err", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			slog.Error("error while running the REST server", "err", err)
+			os.Exit(1)
+		}
+	}()
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	slog.Info("shutting down gRPC server")
+	slog.Info("shutting down")
+
+	// REST first: in-flight requests are still waiting on a loopback gRPC call.
+	if err := gateway.ShutdownWithTimeout(); err != nil {
+		slog.Warn("REST listener did not drain cleanly", "err", err)
+	}
 
 	done := make(chan struct{})
 	go func() {

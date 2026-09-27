@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"osbourne.local/common"
 	coursecatalogue "osbourne.local/course-catalogue-service/gen/course-catalogue"
 	"osbourne.local/course-catalogue-service/internal/domain"
 	"osbourne.local/course-catalogue-service/internal/service"
@@ -54,11 +55,20 @@ func (s *CourseServer) ListCourses(ctx context.Context, req *coursecatalogue.Lis
 	}, nil
 }
 
+// EnrollUser signs the caller up for a course.
+//
+// The body is `*`, so user_id arrives from the browser and is ignored: the
+// subject comes from the verified token. Honouring it would let any
+// authenticated user enrol anybody else into a course.
 func (s *CourseServer) EnrollUser(ctx context.Context, req *coursecatalogue.EnrollUserRequest) (*coursecatalogue.EnrollUserResponse, error) {
 	slog.InfoContext(ctx, "received enroll_user request", "course_id", req.GetCourseId())
 
-	err := s.courseSvc.EnrollStudent(ctx, req.GetCourseId(), req.GetUserId())
-	if err != nil {
+	claims, ok := common.ClaimsFromContext(ctx)
+	if !ok || claims.UserID == "" {
+		return nil, common.RequiresAuthentication()
+	}
+
+	if err := s.courseSvc.EnrollStudent(ctx, req.GetCourseId(), claims.UserID); err != nil {
 		return nil, err
 	}
 
@@ -70,7 +80,14 @@ func (s *CourseServer) EnrollUser(ctx context.Context, req *coursecatalogue.Enro
 func (s *CourseServer) ListEnrolledCourses(ctx context.Context, req *coursecatalogue.ListEnrolledCoursesRequest) (*coursecatalogue.ListEnrolledCoursesResponse, error) {
 	slog.InfoContext(ctx, "received list_enrolled_courses request")
 
-	enrolledCourses, err := s.courseSvc.GetEnrolledCoursesByUserID(ctx, req.GetUserId())
+	// The route is /api/enrollments/me, so there is no id to trust in the
+	// request; the token is the only source of who is asking.
+	userID, err := common.UserIDFromContextOrRequest(ctx, req.GetUserId())
+	if err != nil {
+		return nil, err
+	}
+
+	enrolledCourses, err := s.courseSvc.GetEnrolledCoursesByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

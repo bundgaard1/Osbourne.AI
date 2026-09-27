@@ -40,3 +40,21 @@ func (r *GORMProfileRepository) Create(ctx context.Context, profile *domain.User
 	}
 	return nil
 }
+
+// Update saves every column of an already-loaded profile.
+//
+// Select("*") is explicit because GORM's Save would otherwise skip zero values,
+// which would make it impossible to clear a field - a user removing their phone
+// number or bio would silently have the write ignored.
+func (r *GORMProfileRepository) Update(ctx context.Context, profile *domain.UserProfile) error {
+	err := r.db.WithContext(ctx).
+		Model(&domain.UserProfile{}).
+		Where("id = ?", profile.ID).
+		Select("*").
+		Omit("id", "created_at").
+		Updates(profile).Error
+	if err != nil {
+		return fmt.Errorf("could not update profile: %w", err)
+	}
+	return nil
+}

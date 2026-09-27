@@ -9,8 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"osbourne.local/common"
 	"osbourne.local/notification-service/gen/notification"
 	"osbourne.local/notification-service/internal/consumer"
@@ -101,11 +104,37 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback, so browser
+	// traffic still passes common.AuthInterceptor and arrives with claims in
+	// context. Registering the server implementation in-process would skip it.
+	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
+		return notification.RegisterNotificationServiceHandlerFromEndpoint(
+			context.Background(), mux, "localhost:"+port,
+			[]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+		)
+	})
+	if err != nil {
+		slog.Error("could not start the notification REST gateway", "err", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			slog.Error("error while running the REST server", "err", err)
+			os.Exit(1)
+		}
+	}()
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
 	slog.Info("received shutdown signal, shutting down gracefully")
+
+	// REST first: in-flight requests are still waiting on a loopback gRPC call.
+	if err := gateway.ShutdownWithTimeout(); err != nil {
+		slog.Warn("REST listener did not drain cleanly", "err", err)
+	}
 
 	done := make(chan struct{})
 	go func() {

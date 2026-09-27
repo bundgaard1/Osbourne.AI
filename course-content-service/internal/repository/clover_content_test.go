@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -165,12 +166,11 @@ func TestCloverModuleRepository_UpdateAndDeleteModule(t *testing.T) {
 		t.Fatalf("expected no error on delete, got %v", err)
 	}
 
-	// Verify deletion
-	fetched, err = repo.GetModule(ctx, module.ID)
-	if err != nil {
-		t.Fatalf("expected no error on get after delete, got %v", err)
-	}
-	if fetched != nil {
-		t.Errorf("expected module to be deleted, but it still exists")
+	// Verify deletion. A miss is now an error rather than a (nil, nil) return:
+	// the nil form used to travel on into the RPC layer, where toProtoModule
+	// dereferenced it and panicked the service.
+	_, err = repo.GetModule(ctx, module.ID)
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("get after delete: err = %v, want domain.ErrNotFound", err)
 	}
 }

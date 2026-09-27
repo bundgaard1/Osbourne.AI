@@ -4,14 +4,18 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/wagslane/go-rabbitmq"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 
 	"osbourne.local/auth-service/gen/auth"
 	"osbourne.local/auth-service/internal/database"
@@ -30,6 +34,11 @@ func main() {
 	amqpURL := getEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 	jwtSecret := getEnv("JWT_SECRET", "dev-secret-change-me")
 	tokenTTL := time.Duration(getEnvInt("TOKEN_TTL_MINUTES", 120)) * time.Minute
+
+	// Loopback only: the REST listener and the gRPC server are the same process
+	// and the traffic never leaves the container, so there is nothing to encrypt
+	// and nothing to authenticate. Every other service uses the same pair.
+	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
@@ -71,8 +80,11 @@ func main() {
 		JWTSecret: jwtSecret,
 		TokenTTL:  tokenTTL,
 	})
-	authGrpcServer := server.NewAuthServer(authSvc)
+	authGrpcServer := server.NewAuthServer(authSvc, tokenTTL)
 
+	// The service authenticates nobody: Login, ValidateToken and Logout are all
+	// reachable without a token, which is the point of them. Every other
+	// service installs common.AuthInterceptor.
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(common.RequestLoggerInterceptor()),
 	)
@@ -86,11 +98,45 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback rather than
+	// calling the implementation in-process, so common.AuthInterceptor and
+	// common.RequestLoggerInterceptor still apply to browser traffic.
+	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
+		return auth.RegisterAuthServiceHandlerFromEndpoint(
+			context.Background(), mux, "localhost:"+port, dialOpts,
+		)
+	},
+		// The token is delivered to the browser as an HttpOnly cookie. Leaving
+		// it in the JSON body as well would mean any XSS on the login page could
+		// read it straight out of the response, which defeats the point of
+		// HttpOnly. The gRPC path keeps the token: the frontend's SSR handlers
+		// call Login over gRPC and need it, and this option only runs on the
+		// HTTP response.
+		runtime.WithForwardResponseOption(redactLoginToken),
+	)
+	if err != nil {
+		slog.Error("could not start the auth REST gateway", "err", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			slog.Error("error while running the REST server", "err", err)
+			os.Exit(1)
+		}
+	}()
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
 	slog.Info("received shutdown signal, shutting down gracefully")
+
+	// REST is drained first: every in-flight request is still waiting on a
+	// loopback gRPC call, so stopping gRPC first would fail them mid-translation.
+	if err := gateway.ShutdownWithTimeout(); err != nil {
+		slog.Warn("REST listener did not drain cleanly", "err", err)
+	}
 
 	done := make(chan struct{})
 	go func() {
@@ -105,6 +151,15 @@ func main() {
 		slog.Warn("timeout exceeded, forcing shutdown")
 		grpcServer.Stop()
 	}
+}
+
+// redactLoginToken clears the token from the REST response body. The browser
+// gets it from the Set-Cookie header instead; see the call site for why.
+func redactLoginToken(_ context.Context, _ http.ResponseWriter, msg proto.Message) error {
+	if resp, ok := msg.(*auth.LoginResponse); ok {
+		resp.Token = ""
+	}
+	return nil
 }
 
 func getEnv(key, defaultVal string) string {

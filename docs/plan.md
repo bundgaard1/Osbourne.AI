@@ -366,12 +366,12 @@ Two pre-existing defects in the course-content **server** also had to be fixed, 
 
 *Result:* `make generate` emits 36 `*.pb.gw.go` files (6 stubs per backend — the gateway plugin has no per-service filter, so each backend's `gen/` receives one stub per proto; the frontend's gateway pass is excluded, so it gets 0). `proto/openapi/osbourne.swagger.json` now lists 18 paths / 23 operations, matching the 6.0 table (the only two 6.0 rows absent from the spec are the custom `HandlePath` upload/download pair, which have no annotation by design). `buf lint` is at parity with the pre-change baseline (21 findings, all pre-existing) minus the now-fixed unused import. `go build`, `go vet` and `go test` pass in all 8 modules, including after a from-scratch regeneration with all `gen/` directories deleted.
 
-### 6.3 Step 3 — `common` module
+### 6.3 Step 3 — `common` module ✅
 
 New **`common/gateway.go`**, so all six `main.go`s stay a handful of lines each:
 
 * `GatewayMux()` — `runtime.NewServeMux` with the incoming/outgoing header matchers, the error handler and a `JSONPb` marshaler (`UseProtoNames: true`, `DiscardUnknown: true`).
-* `IncomingHeaderMatcher` — maps `Authorization` → `authorization` and `X-Request-ID` → `x-request-id`, falling through to `runtime.DefaultHeaderMatcher`. (`Authorization` already has a special case inside grpc-gateway's `annotateContext`; keeping it explicit means the behaviour survives a runtime upgrade. `X-Request-ID` has no such case and *would* be dropped.)
+* `IncomingHeaderMatcher` — maps `Authorization` → `authorization` and `X-Request-Id` → `x-request-id`, falling through to `runtime.DefaultHeaderMatcher`. (`Authorization` already has a special case inside grpc-gateway's `annotateContext`; keeping it explicit means the behaviour survives a runtime upgrade. `X-Request-Id` has no such case and *would* be dropped.)
 * `OutgoingHeaderMatcher` — maps `set-cookie` → `Set-Cookie`, so a service can set a cookie by calling `grpc.SetHeader(ctx, metadata.Pairs("set-cookie", ...))` from inside the RPC.
 * `GatewayErrorHandler` — gRPC code → HTTP status with a consistent body:
 
@@ -384,7 +384,16 @@ New **`common/gateway.go`**, so all six `main.go`s stay a handful of lines each:
 
 New **`common.AuthStreamInterceptor`** — `AuthInterceptor` is unary-only, so `SubmitAssignment` (client streaming) and `DownloadSubmission` (server streaming) are currently unauthenticated at the gRPC layer. This is the moment to close it.
 
-*Test:* `common/gateway_test.go` covers the header matchers (`Authorization` → `authorization`, `X-Request-ID` → `x-request-id`, `Cookie` **not** leaked), the error handler status codes, and the claims-helper precedence.
+*Test:* `common/gateway_test.go` covers the header matchers (`Authorization` → `authorization`, `X-Request-Id` → `x-request-id`, `Cookie` **not** leaked), the error handler status codes, and the claims-helper precedence.
+
+*Result:* 40 subtests pass. Four things the implementation turned up that the step description above did not anticipate:
+
+* **`GatewayRoutingErrorHandler` is a separate hook and is required.** `ServeMux` does not send an unmatched request to the error handler; it goes to the *routing* error handler, which defaults to the stock `{"code": 5, "message": "Not Found"}`. A mistyped URL would therefore have answered 404 with a gRPC code and no `success` field while every other error used the new shape. Both now share `writeGatewayError`, and `TestGatewayMuxRoutingErrorShape` drives a real `ServeMux` to catch the regression.
+* **`Cookie` must be actively denied, not just left alone.** The default matcher forwards it as `grpcgateway-Cookie`, putting the raw session cookie into gRPC metadata where it can be logged or traced. `IncomingHeaderMatcher` returns `false` for it; the session reaches the service via `Authorization`, which is where the auth interceptor looks.
+* **`OutgoingHeaderMatcher` is an allowlist of one, not a pass-through.** The runtime default prefixes *every* response metadata key with `Grpc-Metadata-` and forwards it. That would leak internal metadata to the browser, so anything not named `set-cookie` is dropped.
+* **`UserIDFromContextOrRequest` returns `(string, error)`.** The step description implied a bare string, but resolving to `""` on a missing identity lets a caller act on it. A request with neither an explicit id nor claims is now `Unauthenticated`.
+
+Two smaller notes: `AuthInterceptor` and `AuthStreamInterceptor` share a new `trimBearer` helper so they accept exactly the same headers, and `AuthStreamInterceptor` wraps `grpc.ServerStream` to override `Context()` because gRPC offers no way to replace a stream's context in place.
 
 ### 6.4 Step 4 — Per-service dual listener
 
@@ -412,6 +421,25 @@ Service-specific work:
   Both self-dial `localhost:<grpc-port>` so the interceptors still apply, and both return `{"success":…, "message":…}` errors — the download path's `Content-Type: application/json` failure signal is load-bearing in the frontend JS.
 
 *Test:* per-service `httptest` round-trips against a real in-process gRPC server plus a `runtime.ServeMux`, asserting the JSON shape and that a missing token yields 401.
+
+#### Result ✅
+
+All six services are wired, and `go build` / `go vet` / `go test` pass in all eight modules. 79 gateway-facing subtests were added across the six services (auth 7, profile 9, notification 6, catalogue 9, content 9, assignment 21, plus `common`'s 13), on top of the pre-existing suite.
+
+The listener wiring itself turned out to be the one genuinely repeatable part, so it became **`common/gateway_serve.go`** rather than six copies of the same forty lines: `common.NewGateway(register)` builds the mux and hands it to a per-service `register` closure, and `Gateway` owns `Serve` / `Shutdown` / `ShutdownWithTimeout`. The gRPC server stays in each `main.go`, where the per-service interceptor chain already lived. This is the first export in the module with more than one caller — the six in Step 3's list still have only the one.
+
+Six things the step description above did not anticipate:
+
+* **The hand-written `HandlePath` routes were completely unauthenticated until they forwarded the header themselves.** `common.IncomingHeaderMatcher` is what maps `Authorization` onto the `authorization` metadata key, and only the generated routes go through it. A `HandlePath` handler makes its own client call, so nothing did that translation: every upload and download reached the server with no credentials and came back 401, which reads exactly like a bad token rather than a missing one. `httpapi.outgoingContext` now copies `Authorization` and `X-Request-Id` into the outgoing metadata. Worth remembering that the fix is *not* obvious from the failure.
+* **Six identity holes closed, all of the same shape.** A `user_id` in a REST request is attacker-controlled, so every one of these now takes the subject from the verified token: `UpdateUserProfile` (which carries a `user_id` field purely for gRPC symmetry), `EnrollUser` (`body: "*"`), `GetUserNotifications`, `ListEnrolledCourses`, and `SubmitAssignment` — where the id arrived in the *first message of a client stream*, so the REST upload route would have let anyone submit work under someone else's name. `ListMySubmissions` already did this correctly and is the model.
+* **`POST /api/notifications/{id}/read` had no ownership check.** The id comes from the URL, so any signed-in user could mark anyone else's notifications read. The check lives in `NotificationService.MarkNotificationAsRead`, which now takes the owner, so no future handler can bypass it; a mismatch reports `NotFound` rather than `PermissionDenied` because distinguishing the two would turn the endpoint into an oracle for enumerating notification ids.
+* **Two pre-existing bugs in course-content, both found by the new tests.** `ModuleService.DeleteModule` fetched the module, checked it existed, and then returned `nil` **without ever calling the repository's delete** — `DELETE` answered 200 while leaving the module readable. And `CloverModuleRepository.GetModule` returned `(nil, nil)` on a miss, which `toProtoModule` dereferenced: any authenticated caller could panic the service with a made-up module id. The repository now returns a `domain.ErrNotFound` sentinel, the service maps it to a gRPC `NotFound` (previously a plain `fmt.Errorf`, so a missing module surfaced to the browser as a 500), and `toProtoModule` is nil-safe to match the catalogue's existing guard. The old repository test asserted `GetModule` returned *no error* after a delete — it only passed because delete never deleted.
+* **`GET /api/courses` with no query parameters returned `total_count: 1` and an empty list.** `offset = (page-1)*pageSize` with both unset gives `LIMIT 0`, which SQL reads as "no rows". Latent today because the frontend always sends `page=1&page_size=10`, but Step 6 publishes this route and Step 7 calls it from the browser. `ListCourses` now normalises `page >= 1` and clamps `page_size` to 20…100.
+* **The catalogue is not public**, contrary to what its routes suggest. `AuthInterceptor` rejects anonymous callers, and that is correct: `handler.go` gates `/course-catalog` and `/courses/{id}` behind the frontend's own `Authenticate` middleware, so there is no anonymous caller to serve. A test asserting a 200 for a bare `GET /api/courses` was wrong, not the code.
+
+`PUT /api/profile` is a full replacement rather than a merge. The proto's fields are plain proto3 scalars with no presence tracking, so an omitted field and one sent as `""` are the same request on the wire; a merge would have to guess from JSON that has already been decoded. `PUT` is defined as replacing the resource, and it is the only option the wire format allows. The GORM `Update` uses `Select("*").Omit("id", "created_at")` so a field can actually be *cleared* — GORM's `Updates` skips zero values by default, which would have made "remove my phone number" silently do nothing.
+
+**Still open, and deliberately not decided here:** `ListSubmissions` (all submissions for an assignment) and `GradeSubmission` have no role check, so any authenticated student can read every classmate's submission and grade it. `ListMySubmissions` restricts by student, and the JWT already carries a `Role` (`student` / `teacher`, both seeded). Closing it is a one-line `claims.Role` check per handler, but it is a product decision — there is no teacher UI in the frontend today, so the intended policy is not written down anywhere. Worth confirming before Step 5 makes these routes reachable.
 
 ### 6.5 Step 5 — Nginx as the API gateway
 

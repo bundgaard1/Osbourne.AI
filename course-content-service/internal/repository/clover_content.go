@@ -57,9 +57,12 @@ func (r *CloverModuleRepository) GetModule(ctx context.Context, moduleID string)
 		return nil, err
 	}
 	if doc == nil {
-		return nil, nil
+		// A sentinel error, not (nil, nil): callers used to pass the nil module
+		// straight to the RPC layer, where toProtoModule dereferenced it and
+		// panicked the whole service. Any authenticated caller could trigger it
+		// with a made-up module id.
+		return nil, fmt.Errorf("module %s: %w", moduleID, domain.ErrNotFound)
 	}
-	// fmt.Println(doc.Fields(true))
 
 	return toDomainModule(doc)
 }

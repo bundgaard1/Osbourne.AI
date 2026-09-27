@@ -114,7 +114,16 @@ func (s *ContentServer) ListModulesByCourseID(ctx context.Context, req *courseco
 	}, nil
 }
 
+// toProtoModule is nil-safe on purpose. The service now returns a NotFound
+// status for a missing module, so this should never see nil - but a nil
+// dereference here panics the process and takes every in-flight request with
+// it, and a gateway route is directly reachable by anyone who can authenticate.
+// The catalogue's equivalent already has this guard.
 func toProtoModule(module *domain.Module) *coursecontent.Module {
+	if module == nil {
+		return nil
+	}
+
 	return &coursecontent.Module{
 		Id:       module.ID,
 		CourseId: module.CourseID,

@@ -79,6 +79,13 @@ func (s *AssignmentServer) GetAssignment(ctx context.Context, req *assignmentpb.
 }
 
 func (s *AssignmentServer) SubmitAssignment(stream assignmentpb.AssignmentService_SubmitAssignmentServer) error {
+	// common.AuthStreamInterceptor puts the verified subject here. Without that
+	// interceptor this call was completely unauthenticated.
+	claims, ok := common.ClaimsFromContext(stream.Context())
+	if !ok || claims.UserID == "" {
+		return common.RequiresAuthentication()
+	}
+
 	first, err := stream.Recv()
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "expected metadata as first message: %v", err)
@@ -88,8 +95,12 @@ func (s *AssignmentServer) SubmitAssignment(stream assignmentpb.AssignmentServic
 	if meta == nil {
 		return status.Error(codes.InvalidArgument, "first message must contain metadata")
 	}
-	if meta.GetAssignmentId() == "" || meta.GetStudentId() == "" || meta.GetFilename() == "" {
-		return status.Error(codes.InvalidArgument, "metadata must contain assignment_id, student_id and filename")
+	// student_id is deliberately absent from this list. The uploader is taken
+	// from the token: the old metadata field let any caller submit work under
+	// somebody else's id, and the REST upload route fills this metadata from
+	// the browser.
+	if meta.GetAssignmentId() == "" || meta.GetFilename() == "" {
+		return status.Error(codes.InvalidArgument, "metadata must contain assignment_id and filename")
 	}
 
 	// Fail fast before consuming the stream so an invalid assignment does not
@@ -124,7 +135,7 @@ func (s *AssignmentServer) SubmitAssignment(stream assignmentpb.AssignmentServic
 
 	submission, err := s.svc.SubmitAssignment(stream.Context(), service.SubmitAssignmentInput{
 		AssignmentID: meta.GetAssignmentId(),
-		StudentID:    meta.GetStudentId(),
+		StudentID:    claims.UserID,
 		FileName:     meta.GetFilename(),
 		Size:         meta.GetSize(),
 	}, pr)

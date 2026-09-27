@@ -45,10 +45,7 @@ func AuthInterceptor(secret string) grpc.UnaryServerInterceptor {
 			return nil, RequiresAuthentication()
 		}
 
-		token := strings.TrimPrefix(values[0], BearerPrefix)
-		token = strings.TrimSpace(token)
-
-		claims, err := ParseJWT(secret, token)
+		claims, err := ParseJWT(secret, trimBearer(values[0]))
 		if err != nil {
 			return nil, RequiresAuthentication()
 		}
@@ -60,6 +57,13 @@ func AuthInterceptor(secret string) grpc.UnaryServerInterceptor {
 
 		return handler(ctx, req)
 	}
+}
+
+// trimBearer strips the "Bearer " scheme from an authorization metadata value
+// and tolerates surrounding whitespace. Shared by AuthInterceptor and
+// AuthStreamInterceptor so both accept exactly the same set of headers.
+func trimBearer(value string) string {
+	return strings.TrimSpace(strings.TrimPrefix(value, BearerPrefix))
 }
 
 // AttachToken appends the bearer token to the outgoing gRPC metadata.

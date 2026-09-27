@@ -11,12 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/wagslane/go-rabbitmq"
-
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"osbourne.local/assignment-service/gen/assignment"
 	"osbourne.local/assignment-service/internal/database"
+	"osbourne.local/assignment-service/internal/httpapi"
 	"osbourne.local/assignment-service/internal/publisher"
 	"osbourne.local/assignment-service/internal/repository"
 	"osbourne.local/assignment-service/internal/seed"
@@ -136,6 +138,14 @@ func main() {
 			common.AuthInterceptor(cfg.JWTSecret),
 			common.RequestLoggerInterceptor(),
 		),
+		// AuthInterceptor is unary-only, so without this both streaming RPCs were
+		// reachable with no token at all: SubmitAssignment accepted any uploader
+		// id and DownloadSubmission served any submission. The interceptor puts
+		// the verified claims in the stream context, which is where
+		// SubmitAssignment now reads the uploader from.
+		grpc.ChainStreamInterceptor(
+			common.AuthStreamInterceptor(cfg.JWTSecret),
+		),
 	)
 	assignment.RegisterAssignmentServiceServer(grpcServer, grpcServerImpl)
 
@@ -157,8 +167,43 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback, so browser
+	// traffic passes the same interceptor chain as any other gRPC caller.
+	//
+	// The two streaming routes are not in the generated mux: their HTTP shapes
+	// (a multipart upload in, a binary file out) do not match a JSON body, so
+	// httpapi registers them by hand.
+	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
+		if err := assignment.RegisterAssignmentServiceHandlerFromEndpoint(
+			context.Background(), mux, "localhost:"+cfg.GRPCPort,
+			[]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+		); err != nil {
+			return err
+		}
+		return httpapi.InstallRoutes(context.Background(), mux, "localhost:"+cfg.GRPCPort)
+	})
+	if err != nil {
+		slog.Error("could not start the assignment REST gateway", "err", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			slog.Error("error while running the REST server", "err", err)
+			os.Exit(1)
+		}
+	}()
+
 	<-shutdownCtx.Done()
 	slog.Info("shutting down assignment-service...")
+
+	// REST is drained first: in-flight requests are still waiting on a loopback
+	// gRPC call, and a download can legitimately be streaming when the signal
+	// arrives, so give the listener a chance to finish before the gRPC server
+	// goes away underneath it.
+	if err := gateway.ShutdownWithTimeout(); err != nil {
+		slog.Warn("REST listener did not drain cleanly", "err", err)
+	}
 
 	stopped := make(chan struct{})
 	go func() {
