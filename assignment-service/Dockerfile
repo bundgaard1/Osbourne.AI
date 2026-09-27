@@ -33,5 +33,9 @@ RUN mkdir -p /app/data && \
 USER appuser
 
 EXPOSE 50055
+# REST listener added in Phase 6: a per-service grpc-gateway, reached only
+# through the nginx api-gateway. EXPOSE is documentation only, but leaving it
+# off makes a missing 8080 listener look like a networking problem.
+EXPOSE 8080
 
 ENTRYPOINT ["./assignment-service"]

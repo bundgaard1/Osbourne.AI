@@ -17,14 +17,28 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # proxy-common.conf and proxy-api.conf hold the header rules that
+      # nginx.conf includes. Without this the gateway cannot parse its own
+      # config and exits, so the two mounts have to stay together.
+      - ./nginx/includes:/etc/nginx/includes:ro
+    # Not load-bearing. nginx.conf keeps its upstreams in variables, so names
+    # are resolved per request and the gateway starts and stays up even while a
+    # backend is down. This is here so a cold `docker compose up` has every name
+    # registered before the first request, rather than to fix a parse error.
     depends_on:
       frontend:
+        condition: service_started
+      auth-service:
         condition: service_started
       profile-service:
         condition: service_started
       notification-service:
         condition: service_started
+      course-content-service:
+        condition: service_started
       course-catalogue-service:
+        condition: service_started
+      assignment-service:
         condition: service_started
     networks: 
       - osbourne-net

@@ -221,6 +221,15 @@ func handleUpload(ctx context.Context, client assignmentpb.AssignmentServiceClie
 			if err := stream.Send(&assignmentpb.SubmitAssignmentRequest{
 				Payload: &assignmentpb.SubmitAssignmentRequest_Chunk{Chunk: chunk},
 			}); err != nil {
+				// The server can refuse the stream as soon as it reads the
+				// metadata - an unknown assignment, a closed deadline - and the
+				// refusal only reaches the client here, as an EOF on Send. The
+				// real status is worth far more to the browser than a generic
+				// 502, so ask for it before giving up on the stream.
+				if _, rerr := stream.CloseAndRecv(); rerr != nil {
+					writeError(w, httpStatusFor(rerr), "%s", status.Convert(rerr).Message())
+					return
+				}
 				slog.ErrorContext(ctx, "could not send chunk", "assignment_id", assignmentID, "err", err)
 				writeError(w, http.StatusBadGateway, "could not upload file")
 				return

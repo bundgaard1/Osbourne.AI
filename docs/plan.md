@@ -439,26 +439,28 @@ Six things the step description above did not anticipate:
 
 `PUT /api/profile` is a full replacement rather than a merge. The proto's fields are plain proto3 scalars with no presence tracking, so an omitted field and one sent as `""` are the same request on the wire; a merge would have to guess from JSON that has already been decoded. `PUT` is defined as replacing the resource, and it is the only option the wire format allows. The GORM `Update` uses `Select("*").Omit("id", "created_at")` so a field can actually be *cleared* — GORM's `Updates` skips zero values by default, which would have made "remove my phone number" silently do nothing.
 
-**Still open, and deliberately not decided here:** `ListSubmissions` (all submissions for an assignment) and `GradeSubmission` have no role check, so any authenticated student can read every classmate's submission and grade it. `ListMySubmissions` restricts by student, and the JWT already carries a `Role` (`student` / `teacher`, both seeded). Closing it is a one-line `claims.Role` check per handler, but it is a product decision — there is no teacher UI in the frontend today, so the intended policy is not written down anywhere. Worth confirming before Step 5 makes these routes reachable.
+**Resolved — role checks are deliberately not wanted.** `ListSubmissions` (all submissions for an assignment) and `GradeSubmission` have no role check, so any authenticated student can read a classmate's submission and grade it. The question was raised before Step 5, and the answer is that this is intended: there is no teacher UI in the frontend today, so `Role` is not part of the access policy and the routes are left open to any authenticated caller. `ListMySubmissions` still restricts by student, since that is scoping rather than privilege. This is recorded as a decision, not an oversight — if a teacher UI is ever built, the `claims.Role` check goes in at that point.
 
-### 6.5 Step 5 — Nginx as the API gateway
+### 6.5 Step 5 — Nginx as the API gateway ✅
 
 Nginx evaluates regex locations in config order, and a match beats the longest prefix match — so specificity is encoded as ordering, with a `/api/` prefix block that 404s anything unrouted (otherwise unknown API paths silently fall through to the frontend):
 
 ```nginx
-location ~ ^/api/auth/                            { proxy_pass http://auth-service:8080; }
-location ~ ^/api/profile(/|$)                     { proxy_pass http://profile-service:8080; }
-location ~ ^/api/notifications(/|$)               { proxy_pass http://notification-service:8080; }
-location ~ ^/api/courses/[^/]+/modules(/|$)       { proxy_pass http://course-content-service:8080; }
-location ~ ^/api/courses/[^/]+/assignments(/|$)   { proxy_pass http://assignment-service:8080; }
-location ~ ^/api/(assignments|submissions)(/|$)   { proxy_pass http://assignment-service:8080; }
-location ~ ^/api/(courses|enrollments)(/|$)       { proxy_pass http://course-catalogue-service:8080; }
+location ~ ^/api/auth/                            { proxy_pass $upstream_auth$request_uri;        }
+location ~ ^/api/profile(/|$)                     { proxy_pass $upstream_profile$request_uri;     }
+location ~ ^/api/notifications(/|$)               { proxy_pass $upstream_notification$request_uri; }
+location ~ ^/api/courses/[^/]+/modules(/|$)       { proxy_pass $upstream_content$request_uri;     }
+location ~ ^/api/courses/[^/]+/assignments(/|$)   { proxy_pass $upstream_assignment$request_uri;    }
+location ~ ^/api/(assignments|submissions)(/|$)   { proxy_pass $upstream_assignment$request_uri;    }
+location ~ ^/api/(courses|enrollments)(/|$)       { proxy_pass $upstream_catalogue$request_uri;     }
 
 location /api/ { default_type application/json; return 404 '{"code":404,"success":false,"message":"unknown API route"}'; }
-location /     { proxy_pass http://frontend:8080; }
+location /     { proxy_pass $upstream_frontend$request_uri; }
 ```
 
-`proxy_pass` inside a regex location must not carry a URI part; omitting it forwards the original path unchanged.
+The original draft wrote these as literal `proxy_pass http://auth-service:8080;`, which is equivalent for routing and is kept that way here for readability. See the startup-ordering note below for why the shipped file uses variables instead.
+
+`proxy_pass` forwards the original path unchanged, which matters because each service owns the whole `/api/…` tree below it and a rewritten path would 404 against its own gateway.
 
 Gateway-level concerns that must not be forgotten:
 
@@ -466,10 +468,17 @@ Gateway-level concerns that must not be forgotten:
 * **`client_max_body_size 12m`.** Nginx defaults to 1 MB and the frontend previously capped uploads at 10 MB itself; without this the 10 MB upload silently 413s at the gateway.
 * **`proxy_request_buffering off`** on the upload route so Nginx does not spool the whole body to disk first.
 * **Keep** `X-Request-ID $request_id` and `Host $host`; hoist the shared `proxy_set_header` block into a single mounted include file so all eleven locations stay in sync.
-* **Startup ordering.** `proxy_pass` with a literal hostname resolves at config-load time, so `api-gateway` must `depends_on` **all six** backends with `condition: service_started` — today's list is missing `auth-service`, `course-content-service` and `assignment-service`. If that proves flaky when containers are recreated, fall back to `set $upstream …; proxy_pass $upstream$request_uri;`, which resolves per request through the `resolver` already in the file.
+* **Startup ordering.** `proxy_pass` with a literal hostname resolves at config-load time, so `api-gateway` would have to `depends_on` all six backends just to be able to parse its own config — and would still be pinned to IPs resolved at boot, so a recreated container is proxied to a dead address until the gateway restarts. The shipped config instead holds each upstream in a variable and uses `set $upstream …; proxy_pass $upstream$request_uri;`, which resolves per request through the `resolver` in the file. `depends_on` is kept for all seven backends so a cold `docker compose up` has every name registered before the first request, but it is no longer load-bearing. The cost of the variable form is that nginx cannot tell whether a URI part was given, so the request URI is appended explicitly — which is also what preserves the query string the catalogue paginates on.
 * Optionally `error_page 401 = @login` so an expired session navigates back to `/login` instead of showing raw JSON.
 
 *Test:* `curl` every path in the 6.0 table through `http://localhost/` and check the 404 catch-all, the 401 behaviour, and the 10 MB upload.
+
+**Result.** `nginx/routing-test.sh` runs the table against stub upstreams — 38 assertions covering which service receives each path, the JSON 404 catch-all, query-string preservation, cookie→bearer promotion, and the 12 MB body limit. It exists because the ordering above is invisible to `nginx -t`: every route is syntactically valid and `/api/courses/42/modules` still parses when it is sent to the catalogue, it just returns the wrong service's 404. Each stub is an nginx that reports its own name plus the headers it received, so one harness covers both the routing table and the header rules. Verified live as well, against the real stack: login → `HttpOnly` cookie → every route in the 6.0 table → 200; a 3 MB upload and its download round-trip byte-identical; unauthenticated requests 401 with the shared error shape; logout clears the cookie and the next request 401s.
+
+Two things had to be fixed to get there:
+
+* The gateway config lives in two files, and `docker-compose.yml` mounted only `nginx.conf`. The missing `./nginx/includes` mount makes the gateway exit on startup, so the two mounts have to stay together.
+* `Upload` masked a server refusal as a generic 502. The server reads the metadata message and can reject straight after it — an unknown assignment, say — but the client only finds out when a later `Send` fails, and that arrives as a bare EOF. A small file hides this, because its single chunk is absorbed into the send buffer and the real status turns up at `CloseAndRecv` instead; a file larger than the 64 KB chunk size does not. The existing `TestUploadForAnUnknownAssignmentIs404` used a 4-byte file and passed while the live 3 MB upload returned `{"code":502,…,"message":"could not upload file"}`. Both paths now recover the status, and the test has a 2 MB sibling that fails if the recovery is removed.
 
 ### 6.6 Step 6 — docker-compose
 

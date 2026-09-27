@@ -270,6 +270,30 @@ func TestUploadForAnUnknownAssignmentIs404(t *testing.T) {
 	}
 }
 
+// The same refusal, but for a file too large to fit in the stream's flow-control
+// window. The server rejects straight after reading the metadata and never reads
+// the body, so the client only finds out when a later Send fails - which arrives
+// as a bare EOF rather than a status. A small file hides this: its single chunk
+// is accepted into the send buffer and the status turns up at CloseAndRecv
+// instead. Without recovering the status there, a browser uploading a real
+// assignment gets an opaque 502 for what is really a 404.
+func TestUploadForAnUnknownAssignmentIs404WithALargeFile(t *testing.T) {
+	mux := newTestGateway(t)
+
+	// Comfortably more than the initial 64 KB window, so a Send is guaranteed
+	// to hit the closed stream rather than being absorbed by buffering.
+	body, contentType := multipartUpload(t, "essay.bin", make([]byte, 2<<20))
+	rec := postUpload(t, mux, "/api/assignments/does-not-exist/submissions",
+		tokenFor(t, "student-1"), body, contentType)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), "assignment not found") {
+		t.Fatalf("body = %s, want it to name the missing assignment", rec.Body)
+	}
+}
+
 // The full round trip: upload a file, then download it and require the bytes to
 // come back identical. Anything that mangles the chunking shows up here.
 func TestDownloadReturnsWhatWasUploaded(t *testing.T) {
