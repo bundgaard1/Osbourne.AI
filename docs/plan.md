@@ -34,7 +34,7 @@ The plan continues to be built around a **Vertical Slice strategy**: We complete
 ### [x] Step 1.3: API Gateway & Docker Compose Integration
 
 * **Action:** Add Nginx/Traefik as an API Gateway in front of `profile-service`.
-* **Implementation:** Route incoming HTTP REST calls (`/api/v1/students`) on to the internal gRPC profile-service.
+* **Implementation:** Route incoming HTTP REST calls (`/api/students`) on to the internal gRPC profile-service.
 * **Test:** Run `docker compose up --build`. Send an HTTP GET/POST call via cURL/Postman to the Gateway and receive a JSON response.
 
 ### [x] Step 1.4: Minimal Frontend Integration
@@ -264,78 +264,244 @@ docker compose up -d --scale profile-service=3 --scale notification-service=2
 
 * **Test:** Run a stress test with `hey` or `ab`:
 ```bash
-hey -n 200 -c 20 http://localhost/api/v1/courses
+hey -n 200 -c 20 http://localhost/api/courses
 ```
 --- 
 
-## [ ] Phase 6: Migration REST API to gRPC
+## [ ] Phase 6: Migrate the REST API out of the frontend into the services
 
-# Migration Plan: Microservice RESTful APIs via grpc-gateway
+**Goal:** Every microservice exposes its own REST API (grpc-gateway in front of its gRPC server), and Nginx stops being a plain reverse proxy and becomes a real **API gateway** that routes, authenticates and traces the whole stack. The frontend keeps its server-rendered pages and its gRPC clients; it stops proxying the browser-facing endpoints.
 
-## Phase 1: Tooling & Protobuf Updates
-1. **Toolchain Setup**:
-   - Install `protoc-gen-grpc-gateway` and `protoc-gen-openapiv2`.
-   - Vend Google API proto dependencies (`google/api/annotations.proto`, `google/api/http.proto`).
-2. **Annotate Service Protobufs**:
-   - Add HTTP annotations (`google.api.http`) across service `.proto` files:
-     - **Auth**: `POST /api/v1/auth/login`, `POST /api/v1/auth/validate`
-     - **Profile**: `GET /api/v1/profile`
-     - **Course Catalogue**: `GET /api/v1/courses`, `GET /api/v1/courses/{id}`, `POST /api/v1/courses/{course_id}/enroll`
-     - **Course Content**: `GET /api/v1/courses/{course_id}/modules`, `POST /api/v1/courses/{course_id}/modules`
-     - **Assignments**: `GET /api/v1/courses/{course_id}/assignments`, `GET /api/v1/assignments/{id}`, `POST /api/v1/assignments/{id}/grade`
-     - **Notifications**: `GET /api/v1/notifications`, `PATCH /api/v1/notifications/{id}/read`
-3. **Regenerate Code**:
-   - Update `buf` or `protoc` build scripts to compile `*.pb.gw.go` stubs alongside `*.pb.go` and `*_grpc.pb.go`.
+> The original draft routed `/api/courses` to the catalogue while `/api/courses/{id}/modules` and `/api/courses/{id}/assignments` belonged to two other services. Phase 4 of that draft (`/api/course-content/`) contradicted the Phase 1 annotation list. The layout below fixes this with a single shared resource tree that Nginx disambiguates by regex.
 
----
+### 6.0 Target REST surface
 
-## Phase 2: Common Library & Middleware
-1. **Metadata & Header Propagation**:
-   - In `common`, implement a custom `runtime.HeaderMatcherFunc` for `runtime.WithIncomingHeaderMatcher`.
-   - Map `Authorization` and `X-Request-ID` from incoming HTTP headers into gRPC incoming context metadata.
-2. **Error Translation**:
-   - Configure `runtime.WithErrorHandler` to translate gRPC error codes (`NotFound`, `Unauthenticated`, `PermissionDenied`, etc.) into standard HTTP status codes (404, 401, 403) with consistent JSON payloads:
-     ```json
-     { "code": 404, "message": "resource not found" }
-     ```
+| Method | Path | Service | Mechanism |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/login` | auth | grpc-gateway (+ `Set-Cookie`) |
+| `POST` | `/api/auth/validate` | auth | grpc-gateway |
+| `POST` | `/api/auth/logout` | auth | grpc-gateway (expires cookie) |
+| `GET` | `/api/profile` | profile | grpc-gateway |
+| `PUT` | `/api/profile` | profile | grpc-gateway (**new RPC**) |
+| `GET` | `/api/courses?page=&page_size=` | catalogue | grpc-gateway |
+| `GET` | `/api/courses/{course_id}` | catalogue | grpc-gateway |
+| `POST` | `/api/enrollments` | catalogue | grpc-gateway |
+| `GET` | `/api/enrollments/me` | catalogue | grpc-gateway |
+| `GET` | `/api/courses/{course_id}/modules` | content | grpc-gateway |
+| `POST` | `/api/courses/{course_id}/modules` | content | grpc-gateway |
+| `GET` | `/api/courses/{course_id}/modules/{module_id}` | content | grpc-gateway |
+| `PUT` | `/api/courses/{course_id}/modules/{module_id}` | content | grpc-gateway |
+| `DELETE` | `/api/courses/{course_id}/modules/{module_id}` | content | grpc-gateway |
+| `GET` | `/api/courses/{course_id}/assignments` | assignment | grpc-gateway |
+| `POST` | `/api/courses/{course_id}/assignments` | assignment | grpc-gateway |
+| `GET` | `/api/assignments/{assignment_id}` | assignment | grpc-gateway |
+| `GET` | `/api/assignments/{assignment_id}/submissions` | assignment | grpc-gateway |
+| `GET` | `/api/assignments/{assignment_id}/submissions/mine` | assignment | grpc-gateway |
+| `GET` | `/api/submissions/{submission_id}` | assignment | grpc-gateway |
+| `POST` | `/api/submissions/{submission_id}/grade` | assignment | grpc-gateway |
+| `POST` | `/api/assignments/{assignment_id}/submissions` | assignment | **custom `HandlePath`** (multipart) |
+| `GET` | `/api/submissions/{submission_id}/file` | assignment | **custom `HandlePath`** (binary stream) |
+| `GET` | `/api/notifications` | notification | grpc-gateway |
+| `POST` | `/api/notifications/{notification_id}/read` | notification | grpc-gateway |
 
----
+Every service exposes at least 2 endpoints, satisfying the requirement in `docs/notes.md`.
 
-## Phase 3: Service-Level Gateway Listeners
-1. **Dual-Listener Server Setup (`main.go`)**:
-   - Run the native gRPC server (ports 50051–50056) in a background goroutine.
-   - Run an HTTP server on a standardized internal port (`:8080`) using `runtime.NewServeMux`.
-   - Register gateway handlers using `Register<Service>HandlerFromEndpoint(...)` pointing to `localhost:<grpc-port>`.
-2. **Dedicated Handlers for File Streaming (Assignment Service)**:
-   - Mount custom `http.HandlerFunc` routes directly on the HTTP server for `/api/v1/assignments/{id}/submit` and `/download` to avoid JSON base64 overhead for multi-part file uploads.
-3. **Docker Compose Updates**:
-   - Expose port `:8080` internally on the Docker bridge network across all backend services.
+**Deviations from the earlier draft, and why:**
 
----
+* `POST /api/enrollments` instead of `POST /api/courses/{course_id}/enroll` — in the shared tree the draft's path would sit next to `GET /api/courses/{course_id}` and force `{course_id}` to double as an action.
+* `POST .../read` instead of `PATCH .../read` — the draft's verb buys nothing here and costs a JS change in the notification list.
+* Upload/download move from `/{id}/submit` and `/submissions/{id}/download` to the nested-resource form; the multipart field name `submission_file` is preserved.
+* `code` in the error body is the **HTTP** status, not the gRPC code (the stock grpc-gateway handler emits the gRPC code, so the draft's `{"code": 404, ...}` could never actually be produced).
+* `POST /api/courses/{course_id}/assignments` and `GET /api/submissions/{submission_id}` were added during Step 2 so the assignment service's existing write and single-fetch RPCs are reachable over HTTP too; `/submissions/mine` is split from the staff-facing `/submissions` so one endpoint does not have to serve two different audiences.
 
-## Phase 4: API Gateway (Nginx) Route Realignment
-1. **Route Mapping in `nginx.conf`**:
-   - Route `/api/v1/auth/` → `http://auth-service:8080`
-   - Route `/api/v1/profile` → `http://profile-service:8080`
-   - Route `/api/v1/courses` → `http://course-catalogue-service:8080`
-   - Route `/api/v1/course-content/` → `http://course-content-service:8080`
-   - Route `/api/v1/assignments/` → `http://assignment-service:8080`
-   - Route `/api/v1/notifications/` → `http://notification-service:8080`
-   - Route `/` → `http://frontend:8080` (fallback for SSR UI & static files)
-2. **Header Passthrough**:
-   - Retain `proxy_set_header X-Request-ID $request_id;` and `proxy_set_header Host $host;`.
+### 6.1 Step 1 — Tooling & code generation ✅
 
----
+* **`Makefile`**: install the two plugins in `tools`, pinned, and run three `buf generate` passes plus a `buf dep update`:
 
-## Phase 5: Frontend Decoupling & Verification
-1. **Remove Frontend Proxies**:
-   - Strip proxy endpoints from the Chi router (`/api/courses/enroll`, `/api/submissions/...`, etc.).
-2. **Update Client-Side Interactions**:
-   - Switch browser fetch/AJAX calls and form submissions to call the `/api/v1/*` routes on Nginx directly.
-   - If using `HttpOnly` session cookies, configure Nginx to extract `$cookie_session_token` into `Authorization: Bearer ...` before forwarding upstream.
-3. **End-to-End Tracing Verification**:
-   - Send requests across the new REST routes.
-   - Confirm stdout JSON logs in downstream services and RabbitMQ handlers retain identical `request_id` and `user_id` values.
+  ```make
+  GATEWAY_VERSION := v2.30.0
+  ...
+  @which protoc-gen-grpc-gateway > /dev/null || (echo "..." && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@$(GATEWAY_VERSION))
+  @which protoc-gen-openapiv2  > /dev/null || (echo "..." && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@$(GATEWAY_VERSION))
+  ```
+
+* **`proto/buf.yaml`**: add `deps: [buf.build/googleapis/googleapis]`; commit the resulting `proto/buf.lock`. Until Step 2 lands the annotations, `buf dep update` prints a harmless *"declared in your buf.yaml deps but is unused"* warning.
+* **`proto/buf.gateway.gen.yaml`** (new): `grpc-gateway` into the six backends' `gen/`. It is a *separate* template rather than extra entries in `buf.gen.yaml` because the frontend must be excluded — see below.
+* **`proto/buf.openapi.gen.yaml`** (new): `openapiv2` with `allow_merge=true,merge_file_name=osbourne` into `proto/openapi/osbourne.swagger.json`. Needs `strategy: all`; without it buf invokes the plugin once per proto directory and all six invocations race to write the same merged filename.
+* **`proto/buf.gen.yaml`**: **deliberately unchanged.** Splitting it per module turned out not to be expressible, and the attempt is what produced the finding below.
+* **`go.mod`**: the `grpc-gateway/v2 v2.30.0` requirement is added in Step 3/4, not here — nothing imports the runtime until `common/gateway.go` exists, so `go mod tidy` would strip a premature `require`.
+
+#### Finding: one buf template cannot vary the output directory per input
+
+`buf.gen.yaml` is a matrix of sources x plugins, and neither schema version can express "module A gets plugin P, module B gets plugin Q":
+
+* **v1** (what this project uses) has a per-plugin `path` field, but it is the path to the plugin **binary**, not a file filter — `name: go` + `path: auth` makes buf try to `exec "auth"`.
+* **v2** moves file selection to a top-level `inputs:` list whose entries are *sources* (`directory`, `module`, `proto_file`, …) and carry no `out` or `plugins` override. Per-plugin narrowing is type-level only (`types` / `exclude_types`), so output directories still cannot be targeted per input.
+
+Hence the three-template split. The consequence is a known wart: every backend receives `.pb.gw.go` stubs for the other five contracts. They compile and are never imported. Removing them would need one `buf generate --path <dir> -o <dir>` invocation per module — 13 extra invocations for dead files, not worth it. The one exclusion that *does* matter is the frontend, because generated gateway stubs there would pull the gateway runtime into `frontend/go.mod` for code nothing imports; `buf.gateway.gen.yaml` simply omits it from the `out` list.
+
+#### Version pin
+
+Plugin **v2.30.0** is pinned. Verified in a scratch module that v2.30.0-generated code compiles against `grpc v1.83.0` + `protobuf v1.36.12`; **v2.31.0 must not be used** — it pulls a grpc newer than the workspace's and forces a workspace-wide bump.
+
+*Result:* `make generate` produces no `*.pb.gw.go` yet (correct — no annotations exist), and `proto/openapi/osbourne.swagger.json` merges all six services with an empty `paths` object. `go build`, `go vet` and `go test` pass in all 8 modules.
+
+### 6.2 Step 2 — Proto HTTP annotations ✅
+
+Add `import "google/api/annotations.proto";` and `option (google.api.http)`:
+
+* `auth.proto`: `Login` → `post: "/api/auth/login", body: "*"`; `ValidateToken` → `post: "/api/auth/validate", body: "*"`; new `Logout` → `post: "/api/auth/logout"` (no body — the request message is empty).
+* `profile.proto`: `GetUserProfile` → `get: "/api/profile"`; new `UpdateUserProfile(UpdateUserProfileRequest) returns (UpdateUserProfileResponse)` → `put: "/api/profile", body: "*"`. `UpdateUserProfileResponse` wraps a `ProfileResponse` rather than reusing it, because `RPC_REQUEST_RESPONSE_UNIQUE` requires a distinct response type per RPC.
+* `course-catalogue.proto`: `ListCourses` → `get: "/api/courses"`; `GetCourse` → `get: "/api/courses/{course_id}"`; `EnrollUser` → `post: "/api/enrollments", body: "*"`; `ListEnrolledCourses` → `get: "/api/enrollments/me"`.
+* `course-content.proto`: `ListModulesByCourseID` → `get: "/api/courses/{course_id}/modules"`; `CreateModule` → `post: "/api/courses/{course_id}/modules", body: "*"`; `GetModule`/`UpdateModule`/`DeleteModule` → `get`/`put`/`delete` on `/api/courses/{course_id}/modules/{module_id}`. `GetModuleRequest`, `UpdateModuleRequest` and `DeleteModuleRequest` gain `course_id`, and `UpdateModuleRequest.id` is renamed to `module_id` to line up with the path template. Only `ListModulesByCourseID` had a caller in the frontend, so no gRPC client call site breaks.
+* `assignment.proto`: `CreateAssignment`/`GetCourseAssignments` → `post`/`get` on `/api/courses/{course_id}/assignments`; `GetAssignment` → `get: "/api/assignments/{assignment_id}"`; `ListSubmissions` → `get: "/api/assignments/{assignment_id}/submissions"`; `ListMySubmissions` → `get: "/api/assignments/{assignment_id}/submissions/mine"`; `GetSubmission` → `get: "/api/submissions/{submission_id}"`; `GradeSubmission` → `post: "/api/submissions/{submission_id}/grade", body: "*"`. **`SubmitAssignment` and `DownloadSubmission` are deliberately left unannotated** — `generate_unbound_methods` defaults to false, so no gateway stubs are emitted for the two streaming RPCs; Step 6.8 mounts hand-written `HandlePath` handlers for them.
+* `notification.proto`: `GetUserNotifications` → `get: "/api/notifications"`; `MarkNotificationAsRead` → `post: "/api/notifications/{notification_id}/read"`. The marker message carries only the path parameter, so no `body` is declared — a `body: "*"` here would be meaningless.
+
+While in the protos, fix the two pre-existing defects: the unused `timestamp.proto` import in `course-content.proto`, and the inconsistent `go_package` in `course-catalogue.proto`.
+
+Two pre-existing defects in the course-content **server** also had to be fixed, because the new `POST /api/courses/{course_id}/modules` route calls straight into them:
+
+* `ContentServer` embedded the `coursecontent.CourseContentServiceServer` *interface*, which is a nil value. Any unimplemented method resolved through it and panicked. Now embeds `UnimplementedCourseContentServiceServer`, matching all five other services.
+* Its create handler was named `Create`, matching no interface method, so the `CreateModule` RPC the gateway was about to wire up was the nil-panicking path. Renamed to `CreateModule`.
+
+*Result:* `make generate` emits 36 `*.pb.gw.go` files (6 stubs per backend — the gateway plugin has no per-service filter, so each backend's `gen/` receives one stub per proto; the frontend's gateway pass is excluded, so it gets 0). `proto/openapi/osbourne.swagger.json` now lists 18 paths / 23 operations, matching the 6.0 table (the only two 6.0 rows absent from the spec are the custom `HandlePath` upload/download pair, which have no annotation by design). `buf lint` is at parity with the pre-change baseline (21 findings, all pre-existing) minus the now-fixed unused import. `go build`, `go vet` and `go test` pass in all 8 modules, including after a from-scratch regeneration with all `gen/` directories deleted.
+
+### 6.3 Step 3 — `common` module
+
+New **`common/gateway.go`**, so all six `main.go`s stay a handful of lines each:
+
+* `GatewayMux()` — `runtime.NewServeMux` with the incoming/outgoing header matchers, the error handler and a `JSONPb` marshaler (`UseProtoNames: true`, `DiscardUnknown: true`).
+* `IncomingHeaderMatcher` — maps `Authorization` → `authorization` and `X-Request-ID` → `x-request-id`, falling through to `runtime.DefaultHeaderMatcher`. (`Authorization` already has a special case inside grpc-gateway's `annotateContext`; keeping it explicit means the behaviour survives a runtime upgrade. `X-Request-ID` has no such case and *would* be dropped.)
+* `OutgoingHeaderMatcher` — maps `set-cookie` → `Set-Cookie`, so a service can set a cookie by calling `grpc.SetHeader(ctx, metadata.Pairs("set-cookie", ...))` from inside the RPC.
+* `GatewayErrorHandler` — gRPC code → HTTP status with a consistent body:
+
+  ```json
+  { "code": 404, "success": false, "message": "course not found" }
+  ```
+
+  The `success` field is what keeps the frontend's existing `result.data.success` contract working unchanged.
+* `UserIDFromContextOrRequest(ctx, requested)` — returns the JWT subject when `requested == ""`, otherwise `requested`.
+
+New **`common.AuthStreamInterceptor`** — `AuthInterceptor` is unary-only, so `SubmitAssignment` (client streaming) and `DownloadSubmission` (server streaming) are currently unauthenticated at the gRPC layer. This is the moment to close it.
+
+*Test:* `common/gateway_test.go` covers the header matchers (`Authorization` → `authorization`, `X-Request-ID` → `x-request-id`, `Cookie` **not** leaked), the error handler status codes, and the claims-helper precedence.
+
+### 6.4 Step 4 — Per-service dual listener
+
+Each `cmd/main.go` keeps its gRPC server on `:5005x` and gains an HTTP server on `$HTTP_PORT` (default `8080`):
+
+```go
+mux := common.GatewayMux()
+// Must be FromEndpoint, not HandlerServer: HandlerServer calls the server
+// implementation in-process and therefore bypasses common.AuthInterceptor.
+if err := profile.RegisterProfileServiceHandlerFromEndpoint(ctx, mux, "localhost:"+port, dialOpts); err != nil { ... }
+srv := &http.Server{Addr: ":" + httpPort, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+```
+
+`insecure` credentials on loopback are fine — the traffic never leaves the container. Graceful shutdown gains a 5 s `srv.Shutdown` next to the existing `grpcServer.GracefulStop()`. Services are wired **one at a time** (`auth` → `profile` → `notification` → `catalogue` → `content` → `assignment`), each verified with `curl` from inside its container before Nginx learns about it.
+
+Service-specific work:
+
+* **auth-service** — `Login` becomes the session issuer: build the `osbourne_session` cookie (HttpOnly, `SameSite=Lax`, `MaxAge` = token TTL) and ship it via `grpc.SetHeader`. New `Logout` RPC returns the same cookie with `MaxAge: -1`.
+* **profile-service** — implement `UpdateUserProfile`: add `Update` to `domain.ProfileRepository`, a GORM implementation, `UpdateProfile` on the service layer, and the RPC. Covers the "at least 2 endpoints" requirement, which `GetUserProfile` alone cannot.
+* **identity from the JWT** — REST callers never pass `user_id` (`GET /api/profile` has no place to put it). The profile, notification and catalogue servers fall back to `common.UserIDFromContextOrRequest` when the request field is empty, so existing gRPC callers keep working unchanged.
+* **assignment-service** — new `internal/httpapi/files.go` with the two streaming routes, registered through `mux.HandlePath` (grpc-gateway v2's `ServeMux` is *not* an `http.ServeMux`, but `HandlePath` accepts a plain path pattern):
+  * `POST /api/assignments/{assignment_id}/submissions` — parse multipart field `submission_file`, `http.MaxBytesReader` at 10 MB, then reuse the chunked `SubmitAssignment` client-stream loop.
+  * `GET /api/submissions/{submission_id}/file` — reuse the `DownloadSubmission` server-stream loop, setting `Content-Disposition` / `Content-Type` / `Content-Length` from the first metadata frame.
+
+  Both self-dial `localhost:<grpc-port>` so the interceptors still apply, and both return `{"success":…, "message":…}` errors — the download path's `Content-Type: application/json` failure signal is load-bearing in the frontend JS.
+
+*Test:* per-service `httptest` round-trips against a real in-process gRPC server plus a `runtime.ServeMux`, asserting the JSON shape and that a missing token yields 401.
+
+### 6.5 Step 5 — Nginx as the API gateway
+
+Nginx evaluates regex locations in config order, and a match beats the longest prefix match — so specificity is encoded as ordering, with a `/api/` prefix block that 404s anything unrouted (otherwise unknown API paths silently fall through to the frontend):
+
+```nginx
+location ~ ^/api/auth/                            { proxy_pass http://auth-service:8080; }
+location ~ ^/api/profile(/|$)                     { proxy_pass http://profile-service:8080; }
+location ~ ^/api/notifications(/|$)               { proxy_pass http://notification-service:8080; }
+location ~ ^/api/courses/[^/]+/modules(/|$)       { proxy_pass http://course-content-service:8080; }
+location ~ ^/api/courses/[^/]+/assignments(/|$)   { proxy_pass http://assignment-service:8080; }
+location ~ ^/api/(assignments|submissions)(/|$)   { proxy_pass http://assignment-service:8080; }
+location ~ ^/api/(courses|enrollments)(/|$)       { proxy_pass http://course-catalogue-service:8080; }
+
+location /api/ { default_type application/json; return 404 '{"code":404,"success":false,"message":"unknown API route"}'; }
+location /     { proxy_pass http://frontend:8080; }
+```
+
+`proxy_pass` inside a regex location must not carry a URI part; omitting it forwards the original path unchanged.
+
+Gateway-level concerns that must not be forgotten:
+
+* **Cookie → bearer header.** The browser holds an HttpOnly `osbourne_session` cookie, services expect `Authorization: Bearer …`. A `map` in the `http` block turns `$cookie_osbourne_session` into the header (an explicit `Authorization` header from curl/Postman still wins). The draft's Phase 5 named `$cookie_session_token`; the real cookie is `osbourne_session`.
+* **`client_max_body_size 12m`.** Nginx defaults to 1 MB and the frontend previously capped uploads at 10 MB itself; without this the 10 MB upload silently 413s at the gateway.
+* **`proxy_request_buffering off`** on the upload route so Nginx does not spool the whole body to disk first.
+* **Keep** `X-Request-ID $request_id` and `Host $host`; hoist the shared `proxy_set_header` block into a single mounted include file so all eleven locations stay in sync.
+* **Startup ordering.** `proxy_pass` with a literal hostname resolves at config-load time, so `api-gateway` must `depends_on` **all six** backends with `condition: service_started` — today's list is missing `auth-service`, `course-content-service` and `assignment-service`. If that proves flaky when containers are recreated, fall back to `set $upstream …; proxy_pass $upstream$request_uri;`, which resolves per request through the `resolver` already in the file.
+* Optionally `error_page 401 = @login` so an expired session navigates back to `/login` instead of showing raw JSON.
+
+*Test:* `curl` every path in the 6.0 table through `http://localhost/` and check the 404 catch-all, the 401 behaviour, and the 10 MB upload.
+
+### 6.6 Step 6 — docker-compose
+
+* Add `HTTP_PORT=8080` to the six backends. They already have no host port bindings; keep it that way.
+* **`frontend`: remove `ports: "8080:8080"`.** The browser must now go through `http://localhost/` or none of the `/api/*` routes exist.
+* `frontend.depends_on`: add the missing `assignment-service`.
+* `api-gateway.depends_on`: add all six backends.
+
+### 6.7 Step 7 — Frontend decoupling
+
+* Delete `frontend/internal/handler/api.go`, the `r.Route("/api", …)` group, and the `writeJSON` / `mimeTypeFor` helpers that only it used. `grpcToHTTPStatus` stays — `fetchError` still uses it.
+* `Authenticate`'s `Profile.GetUserProfile` call stays on gRPC: it is server-side and never traverses Nginx.
+* Repoint the five browser-facing calls and fix their bodies:
+
+  | Location | New target | Change |
+  | --- | --- | --- |
+  | `course_card.templ` | `POST /api/enrollments` | JSON body instead of `URLSearchParams` |
+  | `assignment.templ` | `POST /api/assignments/{id}/submissions` | form `action`; the JS currently matches `form.action.includes('/submit')` — switch to a form class |
+  | `submission_card.templ` | `POST /api/submissions/{id}/grade` | JSON body `{"score":…,"feedback":…}` |
+  | `submission_card.templ`, `student_submission_card.templ` | `GET /api/submissions/{id}/file` | link `href` |
+  | `notification_item.templ` | `POST /api/notifications/{id}/read` | — |
+
+* The `fetch` chains need no rewrites: the success protos already carry `success`, the `\|\| 'fallback'` defaults cover the missing `message`, and the error body carries `message`. The upload handler must therefore emit `{success, message}` too.
+* `login.templ`: the form posts to `/api/auth/login` with `email`/`password`; a small inline script redirects to `/` on success and shows the error inline on 401. The `role` hidden field and `selectRole()` picker go away — role is derived server-side.
+* `base.templ`: logout posts to `/api/auth/logout` then navigates to `/login`. `login.go` keeps only `HandleLoginPage`; `HandleLogin`, `HandleLogout` and the `sessionCookieName` constant are deleted.
+* Optional but worth it: chi's `middleware.RequestID` ignores the inbound `X-Request-ID` and mints a fresh id, so Nginx's id and the frontend's currently diverge. Reading the inbound header is what makes the end-to-end `request_id` trace line up.
+
+*Test:* update `enroll_test.go` — drop `TestHandleEnrollCourseRoutes`, change the `/api/courses/enroll` script-injection assertion to `/api/enrollments`.
+
+### 6.8 Step 8 — Rollout order
+
+1. `buf.yaml` deps + `buf.lock` + `buf.gen.yaml` restructure; regenerate with **no annotations yet** and prove nothing regressed.
+2. `common/gateway.go` + `AuthStreamInterceptor`; add the dependency to all eight `go.mod`s.
+3. Proto annotations + the new `UpdateUserProfile` RPC; `make generate`; fix the compile fallout (including renaming `ContentServer.Create` to match the `CreateModule` RPC).
+4. Dual listeners, one service at a time.
+5. `nginx.conf` + `docker-compose.yml`.
+6. Frontend decoupling + test updates.
+7. Docs, `.http` collection, `swagger.json`.
+8. Full end-to-end pass (below).
+
+### 6.9 Step 9 — Verification
+
+`docker compose up --build`, then:
+
+1. The five UI flows still work from the browser at `http://localhost/`.
+2. An unknown `/api/*` path returns the 404 JSON body, not the frontend.
+3. `GET /api/profile` without a session returns 401.
+4. A 10 MB assignment upload succeeds through Nginx.
+5. `docker compose logs` shows one shared `request_id` across Nginx → service → gRPC.
+6. A RabbitMQ notification still lands after an enrolment.
+
+### 6.10 Risks
+
+* **`RegisterXHandlerServer` would silently disable authentication** — it invokes the server implementation in-process, bypassing every interceptor. It must be `RegisterXHandlerFromEndpoint`.
+* **grpc-gateway version pin.** v2.31.0 pulls grpc > 1.83.0 and forces a workspace-wide upgrade. Pin `v2.30.0`.
+* **`course-content-service/cmd/main.go` hardcodes `"50054"`** and ignores `PORT` (already logged in the issues list). The dual-listener refactor is the natural place to fix it, otherwise the `localhost:<port>` self-dial is wired to a value that can drift from the listener.
+* **Removing the frontend's `:8080` host port** is a visible change — anyone with `http://localhost:8080` bookmarked gets a connection error.
+* **10 MB uploads** need `client_max_body_size` in Nginx *and* the handler cap, plus `proxy_request_buffering off`.
+
+
 
 ## Issues and Additional Features
 

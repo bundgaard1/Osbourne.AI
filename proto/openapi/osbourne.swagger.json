@@ -1,0 +1,1277 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "assignment/assignment.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AssignmentService"
+    },
+    {
+      "name": "AuthService",
+      "description": "The REST annotations on this service are the platform's session boundary:\nLogin mints the `osbourne_session` cookie and Logout expires it, so the\nauth-service owns session issuance rather than the frontend."
+    },
+    {
+      "name": "CourseCatalogueService"
+    },
+    {
+      "name": "CourseContentService",
+      "description": "Modules are addressed as a sub-resource of a course, so every route carries\n{course_id} even for the single-module operations. The service still looks the\nmodule up by {module_id} alone; {course_id} scopes the route and is available\nfor a consistency check."
+    },
+    {
+      "name": "NotificationService"
+    },
+    {
+      "name": "ProfileService",
+      "description": "Both RPCs are exposed on the same path: the caller is always the bearer of the\nJWT, so there is no user id in the URL to get wrong."
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/assignments/{assignmentId}": {
+      "get": {
+        "operationId": "AssignmentService_GetAssignment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/assignmentGetAssignmentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssignmentService"
+        ]
+      }
+    },
+    "/api/assignments/{assignmentId}/submissions": {
+      "get": {
+        "summary": "Every submission for an assignment, for staff.",
+        "operationId": "AssignmentService_ListSubmissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/assignmentListSubmissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssignmentService"
+        ]
+      }
+    },
+    "/api/assignments/{assignmentId}/submissions/mine": {
+      "get": {
+        "summary": "Only the calling student's submissions; identity comes from the JWT claims\nand never from the request payload.",
+        "operationId": "AssignmentService_ListMySubmissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/assignmentListSubmissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssignmentService"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Issues a JWT. The response is also forwarded as a Set-Cookie header by the\nservice's REST facade, so a browser never has to hold the token in JS.",
+        "operationId": "AuthService_Login",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/authLoginResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/authLoginRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "Empties the session cookie. Deliberately unauthenticated: a client whose\ntoken has already expired must still be able to drop it.",
+        "operationId": "AuthService_Logout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/authLogoutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/auth/validate": {
+      "post": {
+        "summary": "Stateless token introspection, for clients that cannot verify the\nsignature themselves. Takes no Authorization header: the token being\nvalidated is the payload.",
+        "operationId": "AuthService_ValidateToken",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/authValidateTokenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/authValidateTokenRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthService"
+        ]
+      }
+    },
+    "/api/courses": {
+      "get": {
+        "summary": "`page` and `page_size` bind from the query string: /api/courses?page=1\u0026page_size=10",
+        "operationId": "CourseCatalogueService_ListCourses",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/coursecatalogueListCoursesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "CourseCatalogueService"
+        ]
+      }
+    },
+    "/api/courses/{courseId}": {
+      "get": {
+        "operationId": "CourseCatalogueService_GetCourse",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/coursecatalogueGetCourseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CourseCatalogueService"
+        ]
+      }
+    },
+    "/api/courses/{courseId}/assignments": {
+      "get": {
+        "operationId": "AssignmentService_GetCourseAssignments",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/assignmentGetCourseAssignmentsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssignmentService"
+        ]
+      },
+      "post": {
+        "summary": "Assignments",
+        "operationId": "AssignmentService_CreateAssignment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/assignmentCreateAssignmentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AssignmentServiceCreateAssignmentBody"
+            }
+          }
+        ],
+        "tags": [
+          "AssignmentService"
+        ]
+      }
+    },
+    "/api/courses/{courseId}/modules": {
+      "get": {
+        "operationId": "CourseContentService_ListModulesByCourseID",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/course_contentListModulesByCourseIDResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CourseContentService"
+        ]
+      },
+      "post": {
+        "operationId": "CourseContentService_CreateModule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/course_contentCreateModuleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CourseContentServiceCreateModuleBody"
+            }
+          }
+        ],
+        "tags": [
+          "CourseContentService"
+        ]
+      }
+    },
+    "/api/courses/{courseId}/modules/{moduleId}": {
+      "get": {
+        "operationId": "CourseContentService_GetModule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/course_contentGetModuleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "moduleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CourseContentService"
+        ]
+      },
+      "delete": {
+        "operationId": "CourseContentService_DeleteModule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/course_contentDeleteModuleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "moduleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CourseContentService"
+        ]
+      },
+      "put": {
+        "operationId": "CourseContentService_UpdateModule",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/course_contentUpdateModuleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "moduleId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CourseContentServiceUpdateModuleBody"
+            }
+          }
+        ],
+        "tags": [
+          "CourseContentService"
+        ]
+      }
+    },
+    "/api/enrollments": {
+      "post": {
+        "summary": "Lives under /api/enrollments rather than /api/courses/{course_id}/enroll so\nthat {course_id} is unambiguously a resource id and never an action name.\n`user_id` in the body is ignored - enrolment is for the JWT bearer.",
+        "operationId": "CourseCatalogueService_EnrollUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/coursecatalogueEnrollUserResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/coursecatalogueEnrollUserRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CourseCatalogueService"
+        ]
+      }
+    },
+    "/api/enrollments/me": {
+      "get": {
+        "summary": "\"me\" instead of {user_id}: the caller is always the JWT bearer.",
+        "operationId": "CourseCatalogueService_ListEnrolledCourses",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/coursecatalogueListEnrolledCoursesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CourseCatalogueService"
+        ]
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "summary": "`user_id` is optional: over REST it is left empty and the server falls back\nto the JWT subject.",
+        "operationId": "NotificationService_GetUserNotifications",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/catalogueNotificationsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NotificationService"
+        ]
+      }
+    },
+    "/api/notifications/{notificationId}/read": {
+      "post": {
+        "summary": "No `body`: the message carries nothing but the path parameter.",
+        "operationId": "NotificationService_MarkNotificationAsRead",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/catalogueMarkNotificationAsReadResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NotificationService"
+        ]
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "summary": "`user_id` is optional and only honoured for internal gRPC callers. Over\nREST it is left empty and the server falls back to the JWT subject, so the\nendpoint cannot be pointed at somebody else's profile.",
+        "operationId": "ProfileService_GetUserProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/profileProfileResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ProfileService"
+        ]
+      },
+      "put": {
+        "summary": "`user_id` in the body is ignored outright - the server always updates the\nJWT subject, so this cannot be used to write to another user's profile.",
+        "operationId": "ProfileService_UpdateUserProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/profileUpdateUserProfileResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/profileUpdateUserProfileRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ProfileService"
+        ]
+      }
+    },
+    "/api/submissions/{submissionId}": {
+      "get": {
+        "operationId": "AssignmentService_GetSubmission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/assignmentGetSubmissionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssignmentService"
+        ]
+      }
+    },
+    "/api/submissions/{submissionId}/grade": {
+      "post": {
+        "summary": "`score` and `feedback` come from the JSON body. The path parameter is the\nsubmission, not the assignment.",
+        "operationId": "AssignmentService_GradeSubmission",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/assignmentGradeSubmissionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AssignmentServiceGradeSubmissionBody"
+            }
+          }
+        ],
+        "tags": [
+          "AssignmentService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "AssignmentServiceCreateAssignmentBody": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dueDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AssignmentServiceGradeSubmissionBody": {
+      "type": "object",
+      "properties": {
+        "score": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "feedback": {
+          "type": "string"
+        }
+      }
+    },
+    "CourseContentServiceCreateModuleBody": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "CourseContentServiceUpdateModuleBody": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "assignmentAssignment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "courseId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dueDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "assignmentCreateAssignmentResponse": {
+      "type": "object",
+      "properties": {
+        "assignment": {
+          "$ref": "#/definitions/assignmentAssignment"
+        }
+      }
+    },
+    "assignmentGetAssignmentResponse": {
+      "type": "object",
+      "properties": {
+        "assignment": {
+          "$ref": "#/definitions/assignmentAssignment"
+        }
+      }
+    },
+    "assignmentGetCourseAssignmentsResponse": {
+      "type": "object",
+      "properties": {
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/assignmentAssignment"
+          }
+        }
+      }
+    },
+    "assignmentGetSubmissionResponse": {
+      "type": "object",
+      "properties": {
+        "submission": {
+          "$ref": "#/definitions/assignmentSubmission"
+        }
+      }
+    },
+    "assignmentGradeSubmissionResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        }
+      }
+    },
+    "assignmentListSubmissionsResponse": {
+      "type": "object",
+      "properties": {
+        "submissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/assignmentSubmission"
+          }
+        }
+      }
+    },
+    "assignmentSubmission": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "assignmentId": {
+          "type": "string"
+        },
+        "studentId": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "graded": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "feedback": {
+          "type": "string"
+        }
+      }
+    },
+    "authLoginRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      }
+    },
+    "authLoginResponse": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      }
+    },
+    "authLogoutResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        }
+      }
+    },
+    "authValidateTokenRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        }
+      }
+    },
+    "authValidateTokenResponse": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      }
+    },
+    "catalogueMarkNotificationAsReadResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        }
+      }
+    },
+    "catalogueNotification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "msg": {
+          "type": "string"
+        },
+        "isRead": {
+          "type": "boolean"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "catalogueNotificationsResponse": {
+      "type": "object",
+      "properties": {
+        "notifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/catalogueNotification"
+          }
+        }
+      }
+    },
+    "course_contentCreateModuleResponse": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "$ref": "#/definitions/course_contentModule"
+        }
+      }
+    },
+    "course_contentDeleteModuleResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        }
+      }
+    },
+    "course_contentGetModuleResponse": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "$ref": "#/definitions/course_contentModule"
+        }
+      }
+    },
+    "course_contentListModulesByCourseIDResponse": {
+      "type": "object",
+      "properties": {
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/course_contentModule"
+          }
+        }
+      }
+    },
+    "course_contentModule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "courseId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "course_contentUpdateModuleResponse": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "$ref": "#/definitions/course_contentModule"
+        }
+      }
+    },
+    "coursecatalogueCourse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "credits": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "coursecatalogueEnrollUserRequest": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "courseId": {
+          "type": "string"
+        }
+      }
+    },
+    "coursecatalogueEnrollUserResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        }
+      }
+    },
+    "coursecatalogueGetCourseResponse": {
+      "type": "object",
+      "properties": {
+        "course": {
+          "$ref": "#/definitions/coursecatalogueCourse"
+        }
+      }
+    },
+    "coursecatalogueListCoursesResponse": {
+      "type": "object",
+      "properties": {
+        "courses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/coursecatalogueCourse"
+          }
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "coursecatalogueListEnrolledCoursesResponse": {
+      "type": "object",
+      "properties": {
+        "enrolledCourses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/coursecatalogueCourse"
+          }
+        }
+      }
+    },
+    "profileProfileResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "birthday": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "studyProgram": {
+          "type": "string"
+        }
+      }
+    },
+    "profileUpdateUserProfileRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "studyProgram": {
+          "type": "string"
+        },
+        "birthday": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "profileUpdateUserProfileResponse": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "$ref": "#/definitions/profileProfileResponse"
+        }
+      },
+      "description": "A dedicated response type rather than reusing ProfileResponse: buf's\nRPC_REQUEST_RESPONSE_UNIQUE rule wants one response type per RPC, and it\nmatches how every other service here wraps its entity\n(GetCourseResponse.course, CreateModuleResponse.module)."
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  }
+}

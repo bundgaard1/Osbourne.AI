@@ -2,13 +2,26 @@ syntax = "proto3";
 
 package notification.catalogue;
 
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "osbourne.local/notification-service/gen/notification;notification";
 
 service NotificationService {
-  rpc GetUserNotifications (NotificationsRequest) returns (NotificationsResponse);
-  rpc MarkNotificationAsRead (MarkNotificationAsReadRequest) returns (MarkNotificationAsReadResponse);
+  // `user_id` is optional: over REST it is left empty and the server falls back
+  // to the JWT subject.
+  rpc GetUserNotifications (NotificationsRequest) returns (NotificationsResponse) {
+    option (google.api.http) = {
+      get: "/api/notifications"
+    };
+  }
+
+  // No `body`: the message carries nothing but the path parameter.
+  rpc MarkNotificationAsRead (MarkNotificationAsReadRequest) returns (MarkNotificationAsReadResponse) {
+    option (google.api.http) = {
+      post: "/api/notifications/{notification_id}/read"
+    };
+  }
 }
 
 message NotificationsRequest {

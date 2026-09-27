@@ -2,16 +2,51 @@ syntax = "proto3";
 
 package user.profile;
 
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "osbourne.local/profile-service/gen/profile;profile";
 
+// Both RPCs are exposed on the same path: the caller is always the bearer of the
+// JWT, so there is no user id in the URL to get wrong.
 service ProfileService {
-  rpc GetUserProfile (ProfileRequest) returns (ProfileResponse);
+  // `user_id` is optional and only honoured for internal gRPC callers. Over
+  // REST it is left empty and the server falls back to the JWT subject, so the
+  // endpoint cannot be pointed at somebody else's profile.
+  rpc GetUserProfile (ProfileRequest) returns (ProfileResponse) {
+    option (google.api.http) = {
+      get: "/api/profile"
+    };
+  }
+
+  // `user_id` in the body is ignored outright - the server always updates the
+  // JWT subject, so this cannot be used to write to another user's profile.
+  rpc UpdateUserProfile (UpdateUserProfileRequest) returns (UpdateUserProfileResponse) {
+    option (google.api.http) = {
+      put: "/api/profile"
+      body: "*"
+    };
+  }
 }
 
 message ProfileRequest {
   string user_id = 1;
+}
+
+message UpdateUserProfileRequest {
+  string name = 1;
+  string phone = 2;
+  string bio = 3;
+  string study_program = 4;
+  google.protobuf.Timestamp birthday = 5;
+}
+
+// A dedicated response type rather than reusing ProfileResponse: buf's
+// RPC_REQUEST_RESPONSE_UNIQUE rule wants one response type per RPC, and it
+// matches how every other service here wraps its entity
+// (GetCourseResponse.course, CreateModuleResponse.module).
+message UpdateUserProfileResponse {
+  ProfileResponse profile = 1;
 }
 
 message ProfileResponse {

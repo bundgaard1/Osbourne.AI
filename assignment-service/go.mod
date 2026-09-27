@@ -21,7 +21,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/rabbitmq/amqp091-go v1.12.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260807164820-c8921c73eeea // indirect
@@ -31,6 +31,10 @@ require (
 	modernc.org/sqlite v1.28.0 // indirect
 )
 
-require osbourne.local/common v0.0.0
+require (
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d
+	osbourne.local/common v0.0.0
+)
 
 replace osbourne.local/common => ../common

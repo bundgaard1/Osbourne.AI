@@ -2,11 +2,40 @@ syntax = "proto3";
 
 package auth;
 
+import "google/api/annotations.proto";
+
 option go_package = "osbourne.local/auth-service/gen/auth;auth";
 
+// The REST annotations on this service are the platform's session boundary:
+// Login mints the `osbourne_session` cookie and Logout expires it, so the
+// auth-service owns session issuance rather than the frontend.
 service AuthService {
-  rpc Login (LoginRequest) returns (LoginResponse);
-  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
+  // Issues a JWT. The response is also forwarded as a Set-Cookie header by the
+  // service's REST facade, so a browser never has to hold the token in JS.
+  rpc Login (LoginRequest) returns (LoginResponse) {
+    option (google.api.http) = {
+      post: "/api/auth/login"
+      body: "*"
+    };
+  }
+
+  // Stateless token introspection, for clients that cannot verify the
+  // signature themselves. Takes no Authorization header: the token being
+  // validated is the payload.
+  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse) {
+    option (google.api.http) = {
+      post: "/api/auth/validate"
+      body: "*"
+    };
+  }
+
+  // Empties the session cookie. Deliberately unauthenticated: a client whose
+  // token has already expired must still be able to drop it.
+  rpc Logout (LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/api/auth/logout"
+    };
+  }
 }
 
 message LoginRequest {
@@ -30,4 +59,10 @@ message ValidateTokenResponse {
   string user_id = 2;
   string email = 3;
   string role = 4;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {
+  bool success = 1;
 }

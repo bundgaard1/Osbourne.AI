@@ -2,23 +2,73 @@ syntax = "proto3";
 
 package assignment;
 
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "osbourne.local/assignment-service/gen/assignment;assignment";
 
 service AssignmentService {
   // Assignments
-  rpc CreateAssignment(CreateAssignmentRequest) returns (CreateAssignmentResponse);
-  rpc GetCourseAssignments(GetCourseAssignmentsRequest) returns (GetCourseAssignmentsResponse);
-  rpc GetAssignment(GetAssignmentRequest) returns (GetAssignmentResponse);
+  rpc CreateAssignment(CreateAssignmentRequest) returns (CreateAssignmentResponse) {
+    option (google.api.http) = {
+      post: "/api/courses/{course_id}/assignments"
+      body: "*"
+    };
+  }
+
+  rpc GetCourseAssignments(GetCourseAssignmentsRequest) returns (GetCourseAssignmentsResponse) {
+    option (google.api.http) = {
+      get: "/api/courses/{course_id}/assignments"
+    };
+  }
+
+  rpc GetAssignment(GetAssignmentRequest) returns (GetAssignmentResponse) {
+    option (google.api.http) = {
+      get: "/api/assignments/{assignment_id}"
+    };
+  }
 
   // Submissions
+  //
+  // SubmitAssignment and DownloadSubmission carry no google.api.http annotation
+  // on purpose. They are client- and server-streaming, and a generated gateway
+  // handler would carry the file as base64 inside JSON. They are served instead
+  // by hand-written http.Handlers mounted on the same mux:
+  //
+  //   POST /api/assignments/{assignment_id}/submissions  multipart/form-data
+  //   GET  /api/submissions/{submission_id}/file          raw bytes
   rpc SubmitAssignment(stream SubmitAssignmentRequest) returns (SubmitAssignmentResponse);
   rpc DownloadSubmission(DownloadSubmissionRequest) returns (stream DownloadSubmissionResponse);
-  rpc GetSubmission(GetSubmissionRequest) returns (GetSubmissionResponse);
-  rpc ListSubmissions(ListSubmissionsRequest) returns (ListSubmissionsResponse);
-  rpc ListMySubmissions(ListMySubmissionsRequest) returns (ListSubmissionsResponse);
-  rpc GradeSubmission(GradeSubmissionRequest) returns (GradeSubmissionResponse);
+
+  rpc GetSubmission(GetSubmissionRequest) returns (GetSubmissionResponse) {
+    option (google.api.http) = {
+      get: "/api/submissions/{submission_id}"
+    };
+  }
+
+  // Every submission for an assignment, for staff.
+  rpc ListSubmissions(ListSubmissionsRequest) returns (ListSubmissionsResponse) {
+    option (google.api.http) = {
+      get: "/api/assignments/{assignment_id}/submissions"
+    };
+  }
+
+  // Only the calling student's submissions; identity comes from the JWT claims
+  // and never from the request payload.
+  rpc ListMySubmissions(ListMySubmissionsRequest) returns (ListSubmissionsResponse) {
+    option (google.api.http) = {
+      get: "/api/assignments/{assignment_id}/submissions/mine"
+    };
+  }
+
+  // `score` and `feedback` come from the JSON body. The path parameter is the
+  // submission, not the assignment.
+  rpc GradeSubmission(GradeSubmissionRequest) returns (GradeSubmissionResponse) {
+    option (google.api.http) = {
+      post: "/api/submissions/{submission_id}/grade"
+      body: "*"
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -2,16 +2,46 @@ syntax = "proto3";
 
 package course_content;
 
-import "google/protobuf/timestamp.proto";
+import "google/api/annotations.proto";
 
 option go_package = "osbourne.local/course-content-service/gen/course-content;coursecontent";
 
+// Modules are addressed as a sub-resource of a course, so every route carries
+// {course_id} even for the single-module operations. The service still looks the
+// module up by {module_id} alone; {course_id} scopes the route and is available
+// for a consistency check.
 service CourseContentService {
-  rpc CreateModule(CreateModuleRequest) returns (CreateModuleResponse);
-  rpc GetModule(GetModuleRequest) returns (GetModuleResponse);
-  rpc UpdateModule(UpdateModuleRequest) returns (UpdateModuleResponse);
-  rpc DeleteModule(DeleteModuleRequest) returns (DeleteModuleResponse);
-  rpc ListModulesByCourseID(ListModulesByCourseIDRequest) returns (ListModulesByCourseIDResponse);
+  rpc CreateModule(CreateModuleRequest) returns (CreateModuleResponse) {
+    option (google.api.http) = {
+      post: "/api/courses/{course_id}/modules"
+      body: "*"
+    };
+  }
+
+  rpc GetModule(GetModuleRequest) returns (GetModuleResponse) {
+    option (google.api.http) = {
+      get: "/api/courses/{course_id}/modules/{module_id}"
+    };
+  }
+
+  rpc UpdateModule(UpdateModuleRequest) returns (UpdateModuleResponse) {
+    option (google.api.http) = {
+      put: "/api/courses/{course_id}/modules/{module_id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteModule(DeleteModuleRequest) returns (DeleteModuleResponse) {
+    option (google.api.http) = {
+      delete: "/api/courses/{course_id}/modules/{module_id}"
+    };
+  }
+
+  rpc ListModulesByCourseID(ListModulesByCourseIDRequest) returns (ListModulesByCourseIDResponse) {
+    option (google.api.http) = {
+      get: "/api/courses/{course_id}/modules"
+    };
+  }
 }
 
 message Module {
@@ -32,7 +62,8 @@ message CreateModuleResponse {
 }
 
 message GetModuleRequest {
-  string module_id = 1;
+  string course_id = 1;
+  string module_id = 2;
 }
 
 message GetModuleResponse {
@@ -40,9 +71,10 @@ message GetModuleResponse {
 }
 
 message UpdateModuleRequest {
-  string id = 1;
-  string title = 2;
-  string text = 3;
+  string course_id = 1;
+  string module_id = 2;
+  string title = 3;
+  string text = 4;
 }
 
 message UpdateModuleResponse {
@@ -50,7 +82,8 @@ message UpdateModuleResponse {
 }
 
 message DeleteModuleRequest {
-  string module_id = 1;
+  string course_id = 1;
+  string module_id = 2;
 }
 
 message DeleteModuleResponse {

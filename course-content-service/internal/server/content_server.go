@@ -9,7 +9,12 @@ import (
 )
 
 type ContentServer struct {
-	coursecontent.CourseContentServiceServer
+	// Embed Unimplemented, not the CourseContentServiceServer interface. The
+	// interface embeds a nil value, so any method left unimplemented would
+	// resolve through a nil pointer and panic the server instead of returning
+	// codes.Unimplemented. Every other service in this workspace already does it
+	// this way.
+	coursecontent.UnimplementedCourseContentServiceServer
 	sourceSvc *service.ModuleService
 }
 
@@ -19,7 +24,10 @@ func NewContentServer(sourceSvc *service.ModuleService) *ContentServer {
 	}
 }
 
-func (s *ContentServer) Create(ctx context.Context, req *coursecontent.CreateModuleRequest) (*coursecontent.CreateModuleResponse, error) {
+// CreateModule implements the CreateModule RPC. It was previously named Create,
+// which matched no interface method, so the RPC resolved through the nil
+// embedded interface above and panicked when called.
+func (s *ContentServer) CreateModule(ctx context.Context, req *coursecontent.CreateModuleRequest) (*coursecontent.CreateModuleResponse, error) {
 	module := &domain.Module{
 		ID:       "",
 		CourseID: req.GetCourseId(),
@@ -59,7 +67,7 @@ func (s *ContentServer) GetModule(ctx context.Context, req *coursecontent.GetMod
 
 func (s *ContentServer) UpdateModule(ctx context.Context, req *coursecontent.UpdateModuleRequest) (*coursecontent.UpdateModuleResponse, error) {
 	update := &service.UpdateModuleInput{
-		ID:    req.GetId(),
+		ID:    req.GetModuleId(),
 		Title: req.GetTitle(),
 		Text:  req.GetText(),
 	}

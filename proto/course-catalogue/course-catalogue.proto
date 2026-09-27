@@ -1,13 +1,41 @@
 syntax = "proto3";
 
 package coursecatalogue;
-option go_package = "osbourne.local/course-catalogue-service/coursecatalogue;coursecatalogue";
+
+import "google/api/annotations.proto";
+
+option go_package = "osbourne.local/course-catalogue-service/gen/course-catalogue;coursecatalogue";
 
 service CourseCatalogueService {
-  rpc GetCourse (GetCourseRequest) returns (GetCourseResponse);
-  rpc ListCourses (ListCoursesRequest) returns (ListCoursesResponse);
-  rpc EnrollUser (EnrollUserRequest) returns (EnrollUserResponse);
-  rpc ListEnrolledCourses (ListEnrolledCoursesRequest) returns (ListEnrolledCoursesResponse);
+  // `page` and `page_size` bind from the query string: /api/courses?page=1&page_size=10
+  rpc ListCourses (ListCoursesRequest) returns (ListCoursesResponse) {
+    option (google.api.http) = {
+      get: "/api/courses"
+    };
+  }
+
+  rpc GetCourse (GetCourseRequest) returns (GetCourseResponse) {
+    option (google.api.http) = {
+      get: "/api/courses/{course_id}"
+    };
+  }
+
+  // Lives under /api/enrollments rather than /api/courses/{course_id}/enroll so
+  // that {course_id} is unambiguously a resource id and never an action name.
+  // `user_id` in the body is ignored - enrolment is for the JWT bearer.
+  rpc EnrollUser (EnrollUserRequest) returns (EnrollUserResponse) {
+    option (google.api.http) = {
+      post: "/api/enrollments"
+      body: "*"
+    };
+  }
+
+  // "me" instead of {user_id}: the caller is always the JWT bearer.
+  rpc ListEnrolledCourses (ListEnrolledCoursesRequest) returns (ListEnrolledCoursesResponse) {
+    option (google.api.http) = {
+      get: "/api/enrollments/me"
+    };
+  }
 }
 
 message GetCourseRequest {

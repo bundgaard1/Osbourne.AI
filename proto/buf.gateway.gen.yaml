@@ -1,0 +1,46 @@
+version: v1
+
+# REST facade generation, kept separate from buf.gen.yaml.
+#
+# buf.gen.yaml cannot express "this output directory gets that plugin": its v1
+# `path` field is the plugin *binary* path, and v2 moved file selection to
+# `inputs`, whose `out` cannot vary per input either. So rather than teach one
+# template a concept it does not have, the gateway gets its own template whose
+# `out` list simply omits the frontend. The frontend serves SSR pages over gRPC
+# and has no REST facade of its own, and generating .pb.gw.go into frontend/gen
+# would drag the gateway runtime into the frontend's go.mod for code that
+# nothing imports.
+#
+# events.proto declares no service, so protoc-gen-grpc-gateway emits nothing for
+# it. That is also why the two streaming RPCs (SubmitAssignment, DownloadSubmission)
+# must be left unannotated in step 2: generate_unbound_methods defaults to false,
+# so no stub is emitted for them either.
+#
+# Known wart: every backend receives gateway stubs for the other five contracts
+# too. They compile and are never imported. Splitting them out per module would
+# need one `buf generate --path <dir> -o <dir>` invocation per module, which is
+# not worth 13 extra invocations for dead files.
+plugins:
+  - name: grpc-gateway
+    out: ../auth-service/gen
+    opt: paths=source_relative
+
+  - name: grpc-gateway
+    out: ../profile-service/gen
+    opt: paths=source_relative
+
+  - name: grpc-gateway
+    out: ../notification-service/gen
+    opt: paths=source_relative
+
+  - name: grpc-gateway
+    out: ../course-catalogue-service/gen
+    opt: paths=source_relative
+
+  - name: grpc-gateway
+    out: ../course-content-service/gen
+    opt: paths=source_relative
+
+  - name: grpc-gateway
+    out: ../assignment-service/gen
+    opt: paths=source_relative

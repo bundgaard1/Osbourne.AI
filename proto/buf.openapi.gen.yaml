@@ -1,0 +1,16 @@
+version: v1
+
+# The machine-readable contract, regenerated with `make generate`.
+#
+# Kept in its own template because it is the one plugin with a single output: the
+# six service specs are merged into one document rather than being scattered into
+# the per-service gen/ directories the other templates write to.
+# protoc-gen-openapiv2 also rejects `paths=source_relative`; merge_file_name is
+# what names the merged document.
+plugins:
+  - name: openapiv2
+    out: ./openapi
+    opt: allow_merge=true,merge_file_name=osbourne
+    # Without this buf invokes the plugin once per proto directory, so all six
+    # invocations race to write the same merged file and six collide.
+    strategy: all

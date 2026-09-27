@@ -1,5 +1,9 @@
 version: v1
 name: buf.build/osborne/apis
+# google/api/annotations.proto & google/api/http.proto back the
+# google.api.http options that drive the grpc-gateway REST surface.
+deps:
+  - buf.build/googleapis/googleapis
 breaking:
   use:
     - FILE
