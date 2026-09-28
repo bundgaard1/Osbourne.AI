@@ -33,6 +33,6 @@ templ StudentSubmissionCard(submission domain.Submission, attempt int) {
 			<p class="submission-feedback muted">Not graded yet &mdash; the teacher hasn't reviewed this attempt.</p>
 		}
 
-		<p><a class="download-link" data-filename={ submission.Filename } href={ "/api/submissions/" + submission.ID + "/download" }>Download submission</a></p>
+		<p><a class="download-link" data-filename={ submission.Filename } href={ "/api/submissions/" + submission.ID + "/file" }>Download submission</a></p>
 	</div>
 }

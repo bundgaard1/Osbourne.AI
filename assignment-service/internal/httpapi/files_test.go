@@ -258,6 +258,55 @@ func TestUploadAboveTheSizeLimitIs413(t *testing.T) {
 	}
 }
 
+// A file of exactly 10 MB has to be accepted. The route advertises 10 MB as the
+// limit, and capping the multipart body at the same number rejected every file
+// at it, because the body is the file plus its boundaries and headers. Nobody
+// tests this by hand: the failure only shows up for a file at the exact size.
+func TestUploadAtExactlyTheSizeLimitIsAccepted(t *testing.T) {
+	mux := newTestGateway(t)
+	assignmentID := seedAssignment(t, mux, "c-1", "Essay")
+
+	payload := bytes.Repeat([]byte("x"), 10<<20)
+	body, contentType := multipartUpload(t, "exact.bin", payload)
+	rec := postUpload(t, mux, "/api/assignments/"+assignmentID+"/submissions",
+		tokenFor(t, "student-1"), body, contentType)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 for a file of exactly 10 MB; body %s", rec.Code, rec.Body)
+	}
+	submissionID, _ := jsonBody(t, rec)["id"].(string)
+	if submissionID == "" {
+		t.Fatalf("upload returned no submission id; body %s", rec.Body.String())
+	}
+
+	// And it has to arrive whole, not truncated at the cap.
+	req := httptest.NewRequest(http.MethodGet, "/api/submissions/"+submissionID+"/file", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenFor(t, "student-1"))
+	dl := httptest.NewRecorder()
+	mux.ServeHTTP(dl, req)
+	if dl.Code != http.StatusOK {
+		t.Fatalf("download: status = %d, want 200; body %s", dl.Code, dl.Body)
+	}
+	if got := dl.Body.Bytes(); len(got) != len(payload) {
+		t.Fatalf("downloaded %d bytes, uploaded %d", len(got), len(payload))
+	}
+}
+
+// One byte over the advertised limit is still refused, so the headroom added
+// for the multipart envelope is not a way around the cap.
+func TestUploadOneByteOverTheSizeLimitIs413(t *testing.T) {
+	mux := newTestGateway(t)
+	assignmentID := seedAssignment(t, mux, "c-1", "Essay")
+
+	body, contentType := multipartUpload(t, "over.bin", bytes.Repeat([]byte("x"), (10<<20)+1))
+	rec := postUpload(t, mux, "/api/assignments/"+assignmentID+"/submissions",
+		tokenFor(t, "student-1"), body, contentType)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413; body %s", rec.Code, rec.Body)
+	}
+}
+
 func TestUploadForAnUnknownAssignmentIs404(t *testing.T) {
 	mux := newTestGateway(t)
 

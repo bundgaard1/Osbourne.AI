@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -257,45 +256,63 @@ func TestEnrollScriptsInCatalogPage(t *testing.T) {
 	if got := strings.Count(html, "addEventListener('submit'"); got != 1 {
 		t.Errorf("enroll submit listener should render exactly once, got %d", got)
 	}
-	if got := strings.Count(html, `/api/courses/enroll`); got != 1 {
+	if got := strings.Count(html, `/api/enrollments`); got != 1 {
 		t.Errorf("enroll endpoint reference should render exactly once, got %d", got)
+	}
+	// The body has to be JSON now. The old handler read URLSearchParams, and a
+	// form-encoded body against the gateway's JSON binding is a 400 that only
+	// shows up when a person clicks the button.
+	if !strings.Contains(html, `'Content-Type': 'application/json'`) {
+		t.Errorf("enroll request should be sent as JSON")
 	}
 }
 
-func TestHandleEnrollCourseRoutes(t *testing.T) {
+// Every /api path belongs to a service now. The frontend serving one would mean
+// a misroute is being papered over by a leftover handler, and a request that
+// should reach a service would silently get HTML or a stale success payload
+// instead of the service's answer.
+func TestFrontendDoesNotServeAPIRoutes(t *testing.T) {
 	ts := newTestServer(t)
 
-	form := url.Values{"course_id": {"c1"}}
-	resp, err := ts.Client().Post(ts.URL+"/api/courses/enroll", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
-	if err != nil {
-		t.Fatalf("POST: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	t.Logf("response body: %s", body)
-
-	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		t.Errorf("expected JSON content type, got %q", resp.Header.Get("Content-Type"))
+	cases := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/enrollments"},
+		{http.MethodPost, "/api/assignments/a1/submissions"},
+		{http.MethodGet, "/api/submissions/s1/file"},
+		{http.MethodPost, "/api/submissions/s1/grade"},
+		{http.MethodPost, "/api/notifications/n1/read"},
+		{http.MethodPost, "/api/auth/login"},
+		{http.MethodPost, "/api/auth/logout"},
+		// The pre-migration paths, which must not have come back.
+		{http.MethodPost, "/api/courses/enroll"},
+		{http.MethodPost, "/api/assignments/a1/submit"},
+		{http.MethodGet, "/api/submissions/s1/download"},
+		{http.MethodPost, "/api/notifications/n1/mark-read"},
 	}
 
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatalf("response is not valid JSON: %v", err)
-	}
+	for _, c := range cases {
+		req, err := http.NewRequest(c.method, ts.URL+c.path, strings.NewReader("{}"))
+		if err != nil {
+			t.Fatalf("build %s %s: %v", c.method, c.path, err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	if payload["success"] != true {
-		t.Errorf("expected success=true, got %v", payload["success"])
-	}
-	msg, _ := payload["message"].(string)
-	if !strings.Contains(msg, "Enrolled in") {
-		t.Errorf("expected success message, got %q", msg)
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", c.method, c.path, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s %s: status = %d, want 404; the frontend is answering an API path", c.method, c.path, resp.StatusCode)
+		}
+		// The gateway owns that shape. Anything else here means the frontend is
+		// still in the business of responding to /api.
+		if strings.Contains(string(body), `"success"`) {
+			t.Errorf("%s %s: frontend returned a gateway-shaped body: %s", c.method, c.path, body)
+		}
 	}
 }

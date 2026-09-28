@@ -20,12 +20,18 @@ templ SubmissionCard(submission domain.Submission) {
                 var button = form.querySelector('button');
                 if (button) button.disabled = true;
 
-                var formData = new FormData(form);
+				var formData = new FormData(form);
 
-                fetch('/api/submissions/' + submissionId + '/grade', {
-                    method: 'POST',
-                    body: formData
-                })
+				fetch('/api/submissions/' + submissionId + '/grade', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					// The form calls the field "grade"; the RPC calls it "score",
+					// and score is an int32, so it goes over as a number.
+					body: JSON.stringify({
+						score: Number(formData.get('grade')),
+						feedback: formData.get('feedback') || ''
+					})
+				})
                     .then(function (resp) {
                         return resp.json().catch(function () { return {}; }).then(function (data) {
                             return { ok: resp.ok, data: data };
@@ -52,7 +58,7 @@ templ SubmissionCard(submission domain.Submission) {
         <p><strong>Submitted At:</strong> { submission.SubmittedAt.Format("2006-01-02 15:04:05") }</p>
         <p><strong>File Name:</strong> { submission.Filename }</p>
         <p><strong>File Size:</strong> { submission.FileSize } bytes</p>
-        <p><a class="download-link" data-filename={ submission.Filename } href={ "/api/submissions/" + submission.ID + "/download" }>Download</a></p>
+        <p><a class="download-link" data-filename={ submission.Filename } href={ "/api/submissions/" + submission.ID + "/file" }>Download</a></p>
         
         if submission.Graded {
             <p><strong>Grade:</strong> { submission.Score }</p>

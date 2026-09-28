@@ -160,12 +160,22 @@ func handleUpload(ctx context.Context, client assignmentpb.AssignmentServiceClie
 	// Cap the body before parsing. MaxBytesReader has to wrap the original
 	// body: it needs to hijack the connection to send its own 413 rather than
 	// letting a truncated body look like a parse error.
+	//
+	// The cap is the file limit plus an allowance for the multipart envelope,
+	// not the file limit itself. A multipart body is the file wrapped in
+	// boundaries, a Content-Disposition header and the other form fields, so a
+	// file of exactly 10 MB arrives as a body a few hundred bytes over 10 MB.
+	// Capping the body at 10 MB therefore rejected every file at the stated
+	// limit, which is the one size a user is most likely to pick. The exact
+	// limit is enforced on the file itself below, so this only has to stop a
+	// runaway upload, not judge it.
 	const maxUploadBytes = 10 << 20 // 10 MB
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
+	const multipartOverheadBytes = 1 << 20
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes+multipartOverheadBytes)
 
 	file, header, err := r.FormFile("submission_file")
 	if err != nil {
-		// A body over the cap surfaces here as a *http.MaxBytesError. Reporting
+		// A body past the cap surfaces here as a *http.MaxBytesError. Reporting
 		// that as 400 would blame the user's file rather than its size.
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
@@ -176,6 +186,13 @@ func handleUpload(ctx context.Context, client assignmentpb.AssignmentServiceClie
 		return
 	}
 	defer file.Close()
+
+	// Now that the part is parsed, its own size is known exactly, so this is
+	// the check that actually enforces the advertised limit.
+	if header.Size > maxUploadBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "submission exceeds the %d byte limit", maxUploadBytes)
+		return
+	}
 
 	filename := header.Filename
 	if filename == "" {

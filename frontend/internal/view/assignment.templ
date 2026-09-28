@@ -19,8 +19,8 @@ templ AssignmentPage(data AssignmentPageData) {
     @submitAssignmentOnce.Once() {
         <script>
             document.addEventListener('submit', function (event) {
-                var form = event.target.closest('form');
-                if (!form || !form.action.includes('/submit')) return;
+                var form = event.target.closest('form.submission-form');
+                if (!form) return;
 
                 event.preventDefault();
                 var button = form.querySelector('button');
@@ -64,7 +64,7 @@ templ AssignmentPage(data AssignmentPageData) {
         if strings.EqualFold(data.User.Role, "student") {
             <section>
                 <h2>Submit here</h2>
-                <form method="POST" action={"/api/assignments/" + data.Assignment.ID + "/submit"} enctype="multipart/form-data">
+                <form class="submission-form" method="POST" action={ "/api/assignments/" + data.Assignment.ID + "/submissions" } enctype="multipart/form-data">
                     <input type="file" name="submission_file" required>
                     <button type="submit">Submit Assignment</button>
                 </form>

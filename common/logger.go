@@ -58,13 +58,30 @@ func (h *contextHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h *contextHandler) Handle(ctx context.Context, rec slog.Record) error {
-	if rid := RequestIDFromContext(ctx); rid != "" {
+	// Only fill in what the call site did not set. A log record carrying the
+	// same key twice is valid JSON but ambiguous, and a log pipeline that keeps
+	// the first occurrence will silently disagree with one that keeps the last.
+	if rid := RequestIDFromContext(ctx); rid != "" && !recordHasAttr(rec, "request_id") {
 		rec.AddAttrs(slog.String("request_id", rid))
 	}
-	if claims, ok := ClaimsFromContext(ctx); ok {
+	if claims, ok := ClaimsFromContext(ctx); ok && !recordHasAttr(rec, "user_id") {
 		rec.AddAttrs(slog.String("user_id", claims.UserID))
 	}
 	return h.handler.Handle(ctx, rec)
+}
+
+// recordHasAttr reports whether the record already carries a top-level attribute
+// with this key.
+func recordHasAttr(rec slog.Record, key string) bool {
+	found := false
+	rec.Attrs(func(a slog.Attr) bool {
+		if a.Key == key {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 func (h *contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

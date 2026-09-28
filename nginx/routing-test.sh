@@ -286,6 +286,23 @@ else
     echo "  FAIL X-Request-Id not forwarded"
 fi
 
+# The id is also echoed back, so it can be read from the browser's network tab
+# rather than only from the container's logs. `always` matters here: nginx drops
+# add_header from error responses without it, and the 404 below is one.
+for probe in "/api/profile:200" "/api/nope:404"; do
+    path=${probe%:*}
+    want=${probe##*:}
+    hdr=$(curl -sS -D - -o /dev/null "http://127.0.0.1:${GATEWAY_PORT}${path}" \
+        | sed -n 's/^X-Request-Id: *//Ip' | tr -d '\r')
+    if [ -n "$hdr" ]; then
+        PASS=$((PASS + 1))
+        printf '  ok   %-52s returns X-Request-Id (%s)\n' "$path HTTP $want" "$hdr"
+    else
+        FAIL=$((FAIL + 1))
+        printf '  FAIL %-52s returns no X-Request-Id\n' "$path HTTP $want"
+    fi
+done
+
 echo
 echo "==> 10 MB upload is not rejected by the gateway"
 

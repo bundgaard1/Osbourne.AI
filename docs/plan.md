@@ -480,14 +480,16 @@ Two things had to be fixed to get there:
 * The gateway config lives in two files, and `docker-compose.yml` mounted only `nginx.conf`. The missing `./nginx/includes` mount makes the gateway exit on startup, so the two mounts have to stay together.
 * `Upload` masked a server refusal as a generic 502. The server reads the metadata message and can reject straight after it — an unknown assignment, say — but the client only finds out when a later `Send` fails, and that arrives as a bare EOF. A small file hides this, because its single chunk is absorbed into the send buffer and the real status turns up at `CloseAndRecv` instead; a file larger than the 64 KB chunk size does not. The existing `TestUploadForAnUnknownAssignmentIs404` used a 4-byte file and passed while the live 3 MB upload returned `{"code":502,…,"message":"could not upload file"}`. Both paths now recover the status, and the test has a 2 MB sibling that fails if the recovery is removed.
 
-### 6.6 Step 6 — docker-compose
+### 6.6 Step 6 — docker-compose ✅
 
 * Add `HTTP_PORT=8080` to the six backends. They already have no host port bindings; keep it that way.
 * **`frontend`: remove `ports: "8080:8080"`.** The browser must now go through `http://localhost/` or none of the `/api/*` routes exist.
 * `frontend.depends_on`: add the missing `assignment-service`.
 * `api-gateway.depends_on`: add all six backends.
 
-### 6.7 Step 7 — Frontend decoupling
+**Result.** `HTTP_PORT=8080` is spelled out on all six backends rather than left to the default in `common.GatewayMux`, because `nginx.conf` hard-codes 8080 for every backend — the two have to agree, and a silent default change would 502 every route with nothing pointing at the cause. `frontend` no longer publishes a host port: binding 8080 as well would leave a second copy of the app that has no `/api/*` routes at all, so the login form would post into a void. It is reachable only from inside `osbourne-net`, and both it and the gateway now depend on all six backends. The only host-published ports left in the stack are nginx on 80 and the RabbitMQ dashboard on 15672.
+
+### 6.7 Step 7 — Frontend decoupling ✅
 
 * Delete `frontend/internal/handler/api.go`, the `r.Route("/api", …)` group, and the `writeJSON` / `mimeTypeFor` helpers that only it used. `grpcToHTTPStatus` stays — `fetchError` still uses it.
 * `Authenticate`'s `Profile.GetUserProfile` call stays on gRPC: it is server-side and never traverses Nginx.
@@ -507,6 +509,18 @@ Two things had to be fixed to get there:
 * Optional but worth it: chi's `middleware.RequestID` ignores the inbound `X-Request-ID` and mints a fresh id, so Nginx's id and the frontend's currently diverge. Reading the inbound header is what makes the end-to-end `request_id` trace line up.
 
 *Test:* update `enroll_test.go` — drop `TestHandleEnrollCourseRoutes`, change the `/api/courses/enroll` script-injection assertion to `/api/enrollments`.
+
+**Result.** `api.go` and the `r.Route("/api", …)` group are gone, along with the `writeJSON`/`mimeTypeFor` helpers only they used; `fetchError`/`grpcToHTTPStatus` stay because `pages.go` still needs them for the page routes. The six browser-facing calls now point at the services, and three of them needed more than a URL change:
+
+* **Enrolment** sends a JSON body. The old handler read `URLSearchParams`, and a form-encoded body against the gateway's JSON binding is a 400 that only appears when somebody clicks the button.
+* **Grading** sends `{"score":…,"feedback":…}`. The form field is called `grade` and the RPC field `score`, and `score` is an `int32`, so it goes over as a `Number` rather than leaning on protojson accepting a numeric string.
+* **Upload** matches on `form.submission-form` instead of `form.action.includes('/submit')`. The new path ends in `/submissions`, which *contains* `/submit`, so the old check would have kept passing by coincidence — exactly the kind of accidental agreement that breaks silently the next time a route is renamed.
+
+`HandleLoginPage` survives on its own; the form posts to `/api/auth/login` and auth-service sets the cookie, so the frontend no longer touches a credential. The role picker is gone — the email is a normal editable field and role comes from the token. Logout became a `fetch` to `/api/auth/logout` followed by a navigation, since a plain form post would land the browser on a JSON body. `sessionCookieName` stays: the frontend still has to *read* the cookie to gate pages, it just no longer sets or clears it.
+
+Two trace gaps closed while here. chi's `middleware.RequestID` mints a fresh id and ignores the inbound one, so `logRequest` now adopts nginx's `X-Request-ID`, and `reqIDCtx` reads it from `common` rather than from chi — otherwise the adopted id never reached gRPC. The `GetUserProfile` call in `Authenticate` attaches it explicitly, since it runs before the user exists in the context and so cannot go through `authCtx`; that call is otherwise the one gRPC hop of every page render that cannot be tied back to the page request.
+
+`TestHandleEnrollCourseRoutes` is replaced by `TestFrontendDoesNotServeAPIRoutes`, which asserts the ten `/api` paths — the six new ones and the four pre-migration ones — all 404 at the frontend and never return a gateway-shaped body. Testing that a removed route is absent is weaker than testing that the new one works, but it is the failure this step could plausibly regress into.
 
 ### 6.8 Step 8 — Rollout order
 
@@ -529,6 +543,15 @@ Two things had to be fixed to get there:
 4. A 10 MB assignment upload succeeds through Nginx.
 5. `docker compose logs` shows one shared `request_id` across Nginx → service → gRPC.
 6. A RabbitMQ notification still lands after an enrolment.
+
+**Result.** All six pass against the rebuilt stack. Every page renders 200 through nginx (`/`, `/profile`, `/notifications`, `/course-catalog`, `/courses/1`, `/courses/1/assignments/1`), all five browser-facing API calls answer correctly, `localhost:8080` now refuses connections, and enrolling as the teacher produced `Enrolled in Course: CS101` in their feed through RabbitMQ. A single `GET /course-catalog` carries one id — `890c47f6…` — through nginx, the frontend, profile-service and the catalogue.
+
+Two defects only the verification pass could find:
+
+* **A 10 MB upload was rejected.** The route caps at 10 MB, but the cap was applied to the whole request body, and a multipart body is the file plus its boundaries and headers — so a file of *exactly* 10 MB arrived a few hundred bytes over and got a 413 from the service, not from nginx. The one size a user is most likely to pick was the one that failed. The body cap now carries an allowance for the envelope and the advertised limit is enforced on the parsed part, with tests either side of the boundary at exactly 10 MB and 10 MB + 1.
+* **Structured logs carried duplicate keys.** `contextHandler` enriches every record with `request_id` and `user_id`, and `interceptor_log.go` passed the same two keys explicitly, so each gRPC line had `"user_id"` twice. That is valid JSON but ambiguous: a pipeline keeping the first occurrence and one keeping the last disagree about the request id. The enrichment now skips keys the call site already set.
+
+The request id is also echoed back in an `X-Request-Id` response header, using `always` so it survives the 401s and 404s that are the responses actually worth tracing. Without `always` nginx drops `add_header` from error responses, and the 404 catch-all — which answers from nginx rather than proxying, so it never pulls in `proxy-common.conf` — was the one response with no id to quote.
 
 ### 6.10 Risks
 

@@ -19,7 +19,7 @@ templ NotificationItem(n domain.Notification) {
 				var notificationId = notificationItem.getAttribute('data-notification-id');
 				if (!notificationId) return;
 
-				fetch("/api/notifications/" + notificationId + "/mark-read", {
+				fetch("/api/notifications/" + notificationId + "/read", {
 					method: 'POST'
 				})
 					.then(function (resp) {

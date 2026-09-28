@@ -50,11 +50,20 @@ templ Base(user domain.User) {
 					<h2>Osborne.AI Portal</h2>
 					<div class="user-badge">
 						{ user.Name } ({ user.Role })
-						<form method="POST" action="/logout" style="display:inline; margin-left:12px;">
-							<button type="submit" style="cursor:pointer;">Log out</button>
-						</form>
+						<button type="button" id="logout-button" style="cursor:pointer; margin-left:12px;">Log out</button>
 					</div>
 				</header>
+
+				<script>
+					// Logout is an API call now: auth-service owns the cookie and is
+					// the only thing that can clear it. A plain form post would land
+					// the browser on a JSON body instead of the login page.
+					document.getElementById('logout-button').addEventListener('click', function () {
+						fetch('/api/auth/logout', { method: 'POST' })
+							.then(function () { window.location.href = '/login'; })
+							.catch(function () { window.location.href = '/login'; });
+					});
+				</script>
 
 				<nav class="side-navbar">
 					<ul>

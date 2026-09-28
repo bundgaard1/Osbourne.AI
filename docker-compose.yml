@@ -66,6 +66,10 @@ services:
       dockerfile: auth-service/Dockerfile
     environment:
       - PORT=50056
+      # REST listener for the nginx api-gateway. Spelled out because
+      # nginx.conf hard-codes 8080 for every backend, so a silent change to the
+      # default in common.GatewayMux would 502 every route with no other clue.
+      - HTTP_PORT=8080
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/auth.db
       - JWT_SECRET=dev-secret-change-me
@@ -84,6 +88,10 @@ services:
       dockerfile: profile-service/Dockerfile
     environment:
       - PORT=50051
+      # REST listener for the nginx api-gateway. Spelled out because
+      # nginx.conf hard-codes 8080 for every backend, so a silent change to the
+      # default in common.GatewayMux would 502 every route with no other clue.
+      - HTTP_PORT=8080
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/profiles.db
       - JWT_SECRET=dev-secret-change-me
@@ -102,6 +110,10 @@ services:
       dockerfile: notification-service/Dockerfile
     environment:
       - PORT=50052
+      # REST listener for the nginx api-gateway. Spelled out because
+      # nginx.conf hard-codes 8080 for every backend, so a silent change to the
+      # default in common.GatewayMux would 502 every route with no other clue.
+      - HTTP_PORT=8080
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/notification.db
       - JWT_SECRET=dev-secret-change-me
@@ -120,6 +132,10 @@ services:
       dockerfile: course-catalogue-service/Dockerfile
     environment:
       - PORT=50053
+      # REST listener for the nginx api-gateway. Spelled out because
+      # nginx.conf hard-codes 8080 for every backend, so a silent change to the
+      # default in common.GatewayMux would 502 every route with no other clue.
+      - HTTP_PORT=8080
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/course-catalogue.db
       - JWT_SECRET=dev-secret-change-me
@@ -138,6 +154,10 @@ services:
       dockerfile: course-content-service/Dockerfile
     environment:
       - PORT=50054
+      # REST listener for the nginx api-gateway. Spelled out because
+      # nginx.conf hard-codes 8080 for every backend, so a silent change to the
+      # default in common.GatewayMux would 502 every route with no other clue.
+      - HTTP_PORT=8080
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - NOSQL_PATH=/app/data
       - JWT_SECRET=dev-secret-change-me
@@ -156,6 +176,10 @@ services:
       dockerfile: assignment-service/Dockerfile
     environment:
       - PORT=50055
+      # REST listener for the nginx api-gateway. Spelled out because
+      # nginx.conf hard-codes 8080 for every backend, so a silent change to the
+      # default in common.GatewayMux would 502 every route with no other clue.
+      - HTTP_PORT=8080
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/assignment.db
       - UPLOAD_DIR=/app/data/uploads
@@ -174,8 +198,10 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    ports:
-      - "8080:8080"
+    # No host port: the browser goes through the api-gateway on port 80, which
+    # is the only place the /api/* routes exist now. Binding 8080 as well would
+    # expose a copy of the app that silently lacks them, so the login form would
+    # post into a void.
     environment:
       - PORT=8080
       - AUTH_SERVICE_ADDR=dns:///auth-service:50056
@@ -191,6 +217,7 @@ services:
       - course-catalogue-service
       - course-content-service
       - auth-service
+      - assignment-service
     networks:
       - osbourne-net
     restart: unless-stopped

@@ -45,9 +45,11 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 
 	r.Handle("/static/*", http.FileServer(http.FS(staticFiles)))
 
+	// Only the page routes live here now. Everything under /api/* is served by
+	// the services themselves through the nginx api-gateway; the frontend serves
+	// HTML and nothing else, so a /api path that reaches it is a misroute rather
+	// than a missing handler.
 	r.Get("/login", h.HandleLoginPage)
-	r.Post("/login", h.HandleLogin)
-	r.Post("/logout", h.HandleLogout)
 
 	r.Group(func(r chi.Router) {
 		r.Use(h.Authenticate)
@@ -57,13 +59,6 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 		r.Get("/course-catalog", h.HandleCourseCatalog)
 		r.Get("/courses/{courseID}", h.HandleCoursePage)
 		r.Get("/courses/{courseID}/assignments/{assignmentID}", h.HandleAssignmentPage)
-		r.Route("/api", func(r chi.Router) {
-			r.Post("/courses/enroll", h.HandleEnrollCourse)
-			r.Post("/assignments/{assignmentID}/submit", h.HandleSubmitAssignment)
-			r.Get("/submissions/{submissionID}/download", h.HandleDownloadSubmission)
-			r.Post("/submissions/{submissionID}/grade", h.HandleGradeSubmission)
-			r.Post("/notifications/{notificationID}/mark-read", h.HandleMarkNotificationRead)
-		})
 	})
 
 	return r
@@ -74,7 +69,17 @@ func (h *Handler) Routes(staticFiles fs.FS) *chi.Mux {
 func logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		ctx := common.WithRequestID(r.Context(), middleware.GetReqID(r.Context()))
+
+		// chi's middleware.RequestID always mints a fresh id and ignores the
+		// inbound one, so a page load and the API calls it triggers would carry
+		// unrelated ids even though nginx ties them together. Adopting nginx's
+		// id is what makes one browser action traceable end to end.
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			id = middleware.GetReqID(r.Context())
+		}
+
+		ctx := common.WithRequestID(r.Context(), id)
 		r = r.WithContext(ctx)
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
@@ -115,9 +120,13 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			Token: cookie.Value,
 		}
 
-		// Resolve the display name from the user's profile.
+		// Resolve the display name from the user's profile. The request id goes
+		// along explicitly rather than through authCtx, because the user is not in
+		// the context yet — that is what is being resolved. Without it this call
+		// is the one gRPC hop of every page render that cannot be correlated with
+		// the page request that caused it.
 		res, err := h.clients.Profile.Client.GetUserProfile(
-			common.AttachToken(ctx, user.Token),
+			common.AttachToken(h.reqIDCtx(ctx), user.Token),
 			&profile.ProfileRequest{UserId: user.ID},
 		)
 		if err == nil {
@@ -144,8 +153,13 @@ func (h *Handler) authCtx(ctx context.Context) context.Context {
 }
 
 // reqIDCtx appends the current request id to outgoing gRPC metadata so backend
-// services can correlate a single request across the whole stack.
+// services can correlate a single request across the whole stack. It reads the
+// id from common rather than from chi, because logRequest may have adopted the
+// id nginx sent and chi still holds the one it minted.
 func (h *Handler) reqIDCtx(ctx context.Context) context.Context {
+	if id := common.RequestIDFromContext(ctx); id != "" {
+		return common.AttachRequestID(ctx, id)
+	}
 	if id := middleware.GetReqID(ctx); id != "" {
 		return common.AttachRequestID(ctx, id)
 	}

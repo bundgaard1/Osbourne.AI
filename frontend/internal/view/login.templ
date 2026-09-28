@@ -1,5 +1,8 @@
 package view
 
+// LoginPage posts straight to auth-service through the api-gateway. The cookie
+// is set by that response, so the browser never sees the token: this form has
+// no server-side handler to hand it to, which is the whole point of the move.
 templ LoginPage(data PageData, errorMsg string) {
 	<!DOCTYPE html>
 	<html lang="en">
@@ -11,41 +14,69 @@ templ LoginPage(data PageData, errorMsg string) {
 		<body>
 			<div class="login-shell">
 				<h2>Osborne.AI Portal</h2>
-				<p>Choose your role to sign in</p>
+				<p>Sign in to continue</p>
 
-				<div class="role-picker">
-					<button type="button" class="role-btn" onclick="selectRole(this, 'student')">Student</button>
-					<button type="button" class="role-btn" onclick="selectRole(this, 'teacher')">Teacher</button>
-				</div>
-
-				<form method="POST" action="/login">
-					<input type="hidden" name="role" id="role-input"/>
+				<form id="login-form">
 					<label for="email-input">Email</label>
-					<input type="email" name="email" id="email-input" placeholder="student@osbourne.local" readonly/>
+					<input type="email" name="email" id="email-input" placeholder="student@osbourne.local" required autocomplete="username"/>
 					<label for="password-input">Password</label>
 					<input type="password" name="password" id="password-input" required autocomplete="current-password"/>
-					<button type="submit">Sign in</button>
+					<button type="submit" id="login-button">Sign in</button>
 				</form>
 
 				if errorMsg != "" {
-					<p class="login-error">{ errorMsg }</p>
+					<p class="login-error" id="login-error">{ errorMsg }</p>
 				}
 
 				<p class="login-hint">Demo accounts: student123 / teacher123</p>
 			</div>
 
 			<script>
-				function selectRole(btn, role) {
-					var buttons = document.querySelectorAll('.role-btn');
-					for (var i = 0; i < buttons.length; i++) {
-						buttons[i].classList.remove('active');
-					}
-					btn.classList.add('active');
+				document.getElementById('login-form').addEventListener('submit', function (event) {
+					event.preventDefault();
 
-					var emails = { student: 'student@osbourne.local', teacher: 'teacher@osbourne.local' };
-					document.getElementById('role-input').value = role;
-					document.getElementById('email-input').value = emails[role];
-					document.getElementById('password-input').focus();
+					var button = document.getElementById('login-button');
+					var error = document.getElementById('login-error');
+					if (button) button.disabled = true;
+					if (error) error.textContent = '';
+
+					fetch('/api/auth/login', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							email: document.getElementById('email-input').value,
+							password: document.getElementById('password-input').value
+						})
+					})
+						.then(function (resp) {
+							return resp.json().catch(function () { return {}; }).then(function (data) {
+								return { ok: resp.ok, data: data };
+							});
+						})
+						.then(function (result) {
+							// The Set-Cookie has already landed by now, so a
+							// full navigation picks it up. A client-side route
+							// change would not re-run the session check.
+							if (result.ok) {
+								window.location.href = '/';
+								return;
+							}
+							if (button) button.disabled = false;
+							showLoginError(error, result.data.message || 'Sign in failed');
+						})
+						.catch(function () {
+							if (button) button.disabled = false;
+							showLoginError(error, 'Could not reach the server');
+						});
+				});
+
+				function showLoginError(element, message) {
+					if (!element) {
+						alert(message);
+						return;
+					}
+					element.textContent = message;
+					element.classList.add('visible');
 				}
 			</script>
 		</body>
