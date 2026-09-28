@@ -57,7 +57,6 @@ func main() {
 		jwtSecret = "dev-secret-change-me"
 	}
 
-	// Create RabbitMQ connection
 	amqpURL := os.Getenv("RABBITMQ_URL")
 	if amqpURL == "" {
 		amqpURL = "amqp://guest:guest@rabbitmq:5672/"
@@ -85,7 +84,6 @@ func main() {
 		}
 	}()
 
-	// Start gRPC server
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			common.AuthInterceptor(jwtSecret),
@@ -104,9 +102,6 @@ func main() {
 		}
 	}()
 
-	// The REST listener dials this same gRPC server over loopback, so browser
-	// traffic still passes common.AuthInterceptor and arrives with claims in
-	// context. Registering the server implementation in-process would skip it.
 	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
 		return notification.RegisterNotificationServiceHandlerFromEndpoint(
 			context.Background(), mux, "localhost:"+port,
@@ -131,7 +126,6 @@ func main() {
 
 	slog.Info("received shutdown signal, shutting down gracefully")
 
-	// REST first: in-flight requests are still waiting on a loopback gRPC call.
 	if err := gateway.ShutdownWithTimeout(); err != nil {
 		slog.Warn("REST listener did not drain cleanly", "err", err)
 	}

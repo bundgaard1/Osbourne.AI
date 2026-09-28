@@ -207,10 +207,47 @@ body {
 	color: #c62828;
 }
 
-.login-hint {
+.demo-accounts {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px solid #eee;
+	text-align: left;
+}
+
+.demo-accounts-title {
+	margin: 0 0 8px;
 	color: #777;
+	font-size: 12px;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.demo-accounts-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.demo-account {
 	font-size: 13px;
-	margin-top: 16px;
+}
+
+.demo-account-role {
+	display: inline-block;
+	min-width: 56px;
+	color: #2e7d32;
+	font-weight: bold;
+}
+
+.demo-account-name {
+	color: #555;
+}
+
+.demo-account code {
+	color: #777;
 }
 
 .submission-list {

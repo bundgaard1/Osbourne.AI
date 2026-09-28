@@ -71,14 +71,12 @@ func main() {
 
 	cfg := loadConfig()
 
-	// 1. Database Initialization
 	db, err := database.NewGORMDB(cfg.DBPath)
 	if err != nil {
 		slog.Error("failed to connect to database", "err", err, "path", cfg.DBPath)
 		os.Exit(1)
 	}
 
-	// SQLite connection pooling constraint: single writer prevents "database is locked" errors
 	sqlDB, err := db.DB()
 	if err != nil {
 		slog.Error("failed to get underlying sql.DB", "err", err)
@@ -87,14 +85,12 @@ func main() {
 	sqlDB.SetMaxOpenConns(1)
 	defer sqlDB.Close()
 
-	// 2. Storage Setup
 	fileStore, err := repository.NewLocalFileStorage(cfg.UploadDir)
 	if err != nil {
 		slog.Error("failed to initialize file storage", "err", err, "dir", cfg.UploadDir)
 		os.Exit(1)
 	}
 
-	// 3. Controlled Seeding (Dev/Local only)
 	if cfg.SeedData {
 		if err := database.SeedGORMData(db); err != nil {
 			slog.Error("failed to seed database", "err", err)
@@ -107,11 +103,9 @@ func main() {
 		slog.Info("database and files successfully seeded")
 	}
 
-	// 4. Dependency Injection
 	assignmentRepo := repository.NewGORMAssignmentRepository(db)
 	submissionRepo := repository.NewGORMSubmissionRepository(db)
 
-	// RabbitMQ connection for publishing domain events (grade.published).
 	amqpURL := os.Getenv("RABBITMQ_URL")
 	if amqpURL == "" {
 		amqpURL = "amqp://guest:guest@rabbitmq:5672/"
@@ -138,18 +132,12 @@ func main() {
 			common.AuthInterceptor(cfg.JWTSecret),
 			common.RequestLoggerInterceptor(),
 		),
-		// AuthInterceptor is unary-only, so without this both streaming RPCs were
-		// reachable with no token at all: SubmitAssignment accepted any uploader
-		// id and DownloadSubmission served any submission. The interceptor puts
-		// the verified claims in the stream context, which is where
-		// SubmitAssignment now reads the uploader from.
 		grpc.ChainStreamInterceptor(
 			common.AuthStreamInterceptor(cfg.JWTSecret),
 		),
 	)
 	assignment.RegisterAssignmentServiceServer(grpcServer, grpcServerImpl)
 
-	// 5. Server Listener & Graceful Shutdown
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPCPort))
 	if err != nil {
 		slog.Error("failed to listen", "port", cfg.GRPCPort, "err", err)
@@ -167,12 +155,6 @@ func main() {
 		}
 	}()
 
-	// The REST listener dials this same gRPC server over loopback, so browser
-	// traffic passes the same interceptor chain as any other gRPC caller.
-	//
-	// The two streaming routes are not in the generated mux: their HTTP shapes
-	// (a multipart upload in, a binary file out) do not match a JSON body, so
-	// httpapi registers them by hand.
 	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
 		if err := assignment.RegisterAssignmentServiceHandlerFromEndpoint(
 			context.Background(), mux, "localhost:"+cfg.GRPCPort,
@@ -197,10 +179,6 @@ func main() {
 	<-shutdownCtx.Done()
 	slog.Info("shutting down assignment-service...")
 
-	// REST is drained first: in-flight requests are still waiting on a loopback
-	// gRPC call, and a download can legitimately be streaming when the signal
-	// arrives, so give the listener a chance to finish before the gRPC server
-	// goes away underneath it.
 	if err := gateway.ShutdownWithTimeout(); err != nil {
 		slog.Warn("REST listener did not drain cleanly", "err", err)
 	}

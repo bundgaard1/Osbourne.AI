@@ -268,7 +268,7 @@ hey -n 200 -c 20 http://localhost/api/courses
 ```
 --- 
 
-## [ ] Phase 6: Migrate the REST API out of the frontend into the services
+## [x] Phase 6: Migrate the REST API out of the frontend into the services
 
 **Goal:** Every microservice exposes its own REST API (grpc-gateway in front of its gRPC server), and Nginx stops being a plain reverse proxy and becomes a real **API gateway** that routes, authenticates and traces the whole stack. The frontend keeps its server-rendered pages and its gRPC clients; it stops proxying the browser-facing endpoints.
 
@@ -395,7 +395,7 @@ New **`common.AuthStreamInterceptor`** — `AuthInterceptor` is unary-only, so `
 
 Two smaller notes: `AuthInterceptor` and `AuthStreamInterceptor` share a new `trimBearer` helper so they accept exactly the same headers, and `AuthStreamInterceptor` wraps `grpc.ServerStream` to override `Context()` because gRPC offers no way to replace a stream's context in place.
 
-### 6.4 Step 4 — Per-service dual listener
+### 6.4 Step 4 — Per-service dual listener ✅
 
 Each `cmd/main.go` keeps its gRPC server on `:5005x` and gains an HTTP server on `$HTTP_PORT` (default `8080`):
 
@@ -533,7 +533,14 @@ Two trace gaps closed while here. chi's `middleware.RequestID` mints a fresh id 
 7. Docs, `.http` collection, `swagger.json`.
 8. Full end-to-end pass (below).
 
-### 6.9 Step 9 — Verification
+This was a prescription, not a deliverable, so it carries no checkmark of its
+own. It was followed, with one deviation worth recording: step 4 was done as a
+single pass over all six services rather than one at a time, after the Step 1–3
+build had already proven the untouched services still compiled and passed. The
+per-service loop the plan expected is covered instead by the shared
+`common/gateway_serve.go` unit tests and the final stack rebuild in Step 9.
+
+### 6.9 Step 9 — Verification ✅
 
 `docker compose up --build`, then:
 

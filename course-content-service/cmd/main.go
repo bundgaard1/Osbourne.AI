@@ -24,10 +24,6 @@ import (
 func main() {
 	common.SetupLogging("course-content-service")
 
-	// Read from the environment like every other service. This was hardcoded to
-	// 50054, which meant the REST listener could not find the gRPC server when
-	// compose mapped the service to a different port - and the self-dial below
-	// is exactly what depends on the two agreeing.
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "50054"
@@ -87,8 +83,6 @@ func main() {
 		}
 	}()
 
-	// The REST listener dials this same gRPC server over loopback, so browser
-	// traffic still passes common.AuthInterceptor.
 	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
 		return coursecontent.RegisterCourseContentServiceHandlerFromEndpoint(
 			context.Background(), mux, "localhost:"+port,
@@ -113,7 +107,6 @@ func main() {
 
 	slog.Info("shutting down")
 
-	// REST first: in-flight requests are still waiting on a loopback gRPC call.
 	if err := gateway.ShutdownWithTimeout(); err != nil {
 		slog.Warn("REST listener did not drain cleanly", "err", err)
 	}

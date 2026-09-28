@@ -51,7 +51,6 @@ func main() {
 
 	coursecatalogueRepo := repository.NewGORMCourseCatalogueRepository(db)
 
-	// RabbitMQ connection for publishing domain events (course.enrolled).
 	amqpURL := os.Getenv("RABBITMQ_URL")
 	if amqpURL == "" {
 		amqpURL = "amqp://guest:guest@rabbitmq:5672/"
@@ -97,10 +96,6 @@ func main() {
 		}
 	}()
 
-	// The REST listener dials this same gRPC server over loopback, so browser
-	// traffic still passes common.AuthInterceptor and arrives with claims in
-	// context - which is what /api/enrollments and /api/enrollments/me rely on
-	// to know who is calling.
 	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
 		return coursecatalogue.RegisterCourseCatalogueServiceHandlerFromEndpoint(
 			context.Background(), mux, "localhost:"+port,
@@ -125,7 +120,6 @@ func main() {
 
 	slog.Info("shutting down")
 
-	// REST first: in-flight requests are still waiting on a loopback gRPC call.
 	if err := gateway.ShutdownWithTimeout(); err != nil {
 		slog.Warn("REST listener did not drain cleanly", "err", err)
 	}

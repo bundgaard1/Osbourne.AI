@@ -28,7 +28,21 @@ templ LoginPage(data PageData, errorMsg string) {
 					<p class="login-error" id="login-error">{ errorMsg }</p>
 				}
 
-				<p class="login-hint">Demo accounts: student123 / teacher123</p>
+				<div class="demo-accounts">
+					<p class="demo-accounts-title">Demo accounts</p>
+					<ul class="demo-accounts-list">
+						<li class="demo-account">
+							<span class="demo-account-role">Student</span>
+							<span class="demo-account-name">Andy Osborne</span>
+							<code>student@osbourne.local / student123</code>
+						</li>
+						<li class="demo-account">
+							<span class="demo-account-role">Teacher</span>
+							<span class="demo-account-name">Dr. Jane Teacher</span>
+							<code>teacher@osbourne.local / teacher123</code>
+						</li>
+					</ul>
+				</div>
 			</div>
 
 			<script>
