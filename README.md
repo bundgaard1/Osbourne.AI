@@ -2,6 +2,8 @@
 
 This project is made for the INFS605 (Microservices) course project. The goal is to create a Student Services Dashboard for university operations using a microservices architecture.
 
+Github: https://github.com/bundgaard1/osbourne.ai
+
 ## Setup steps
 
 Prerequisites:
@@ -40,13 +42,12 @@ Make a video of the system in action,
 - showingand how the system reacts with 
 - logging and events when 
   - a student enrolls in a course,
-  - a submits an assignment, 
+  - a student submits an assignment, 
   - and receives a grade.
--  
 
 ## Tech stack
 
-- All services are written in **Go** (`log/slog` structured logging).
+- All services are written in **Go**.
 - Frontend is a server-rendered web UI built with **Go + Templ** and the `chi` router. It serves HTML and nothing else.
 - API Gateway is built on **Nginx**; it routes `/api/*` to the owning service and everything else to the frontend, and it injects `X-Request-ID`.
 - Every backend service exposes a **dual listener**: a gRPC server for internal service-to-service calls, and a **grpc-gateway** REST listener in front of that same gRPC server for browser traffic.
@@ -72,6 +73,7 @@ Shared code (logging, JWT parsing, gRPC interceptors, the gateway listener, requ
 
 ## Docs
 
+- [API examples](docs/api-examples.md) — real `curl` request/response pairs captured from a running stack, including the failure cases.
 - [Design document](docs/design.md) — architecture, isolation, service endpoints, event catalog, and request correlation.
 - [Plan / issues](docs/plan.md) — the implementation plan and known issues/Deltas.
 - [Notes](docs/notes.md) — additional project notes.

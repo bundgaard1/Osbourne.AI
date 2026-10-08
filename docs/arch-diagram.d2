@@ -1,0 +1,42 @@
+# to compile: 
+# 	d2 --timeout 300 arch-diagram.d2 -t 0 --layout=elk --elk-algorithm=layered arch-diagram.png
+direction: right
+
+
+U: Browser
+B: "API Gateway\nNginx"
+
+U -> B: HTTP/80
+
+FE: Frontend (HTML only) {
+  F: Frontend UI
+}
+
+BE: Backend Services (dual listener) {
+  H: AUTH Service
+  C: Profile Service
+  G: Notification Service
+  D: Course Catalogue Service
+  E: Course Content Service
+  J: Assignment Service
+}
+
+MQ: Message Queue (async events) {
+  Q: "RabbitMQ\nuniversity.events (topic, durable)" {
+    shape: cylinder
+  }
+}
+
+# Routing fra API Gateway
+B -> BE: /api/*
+B -> FE: everything else
+
+# Frontend til Backend (rettet til gRPC-Web for browser-kompatibilitet)
+FE -> BE: gRPC-Web {
+  style.stroke-dash: 3
+}
+
+# Async events til MQ
+BE -> MQ: Events {
+  style.stroke-dash: 5
+}

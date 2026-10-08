@@ -574,30 +574,87 @@ The request id is also echoed back in an `X-Request-Id` response header, using `
 
 ### Critical Bugs
 
-- [x] **Inverted ID generation in CreateModule** — `course-content-service/internal/service/module-service.go:25` generates a UUID only when `module.ID != ""`, which is the opposite of what you want. Should be `== ""`.
-- [x] **DeleteModule does nothing** — `course-content-service/internal/service/module-service.go:67-77` validates the module exists but never calls `s.repo.DeleteModule()`. Deletions silently no-op.
+- [x] **Inverted ID generation in CreateModule** — `CreateModule` in `course-content-service/internal/service/module_service.go` generated a UUID only when `module.ID != ""`, which is the opposite of what you want. Should be `== ""`.
+- [x] **DeleteModule does nothing** — `DeleteModule` in `course-content-service/internal/service/module_service.go` validated the module exists but never called `s.repo.DeleteModule()`. Deletions silently no-op.
 - [x] **No authentication** — fixed: `frontend/internal/handler/handler.go` now runs a `Authenticate` middleware that reads the JWT from the `osbourne_session` cookie (no more `?id=` impersonation); auth-service issues the token and a shared `common` gRPC interceptor enforces it on all five backend services.
 - [ ] **All gRPC traffic is unencrypted** — All 5 frontend gRPC clients use `insecure.NewCredentials()`. No TLS, no mTLS.
 
 ### High Priority Issues
 
 - [x] **RabbitMQ routing key mismatch** — fixed: notification consumer now binds `account.*`, `course.*` and `grade.*` (the legacy `student.*` binding was replaced), and profile-service adds its own `account.created` consumer.
-- [ ] **Hardcoded `guest:guest` RabbitMQ credentials** in `docker-compose.yml:40-41` with the management dashboard (port 15672) exposed to the host.
-- [x] **Debug print left in** — `course-catalogue-service/cmd/main.go:21` has `fmt.Println("hej")`.
-- [x] **Panic in repository constructor** — `course-content-service/internal/repository/clover-content.go:23` calls `panic()` instead of returning an error.
+- [ ] **Hardcoded `guest:guest` RabbitMQ credentials** in the `rabbitmq` service block of `docker-compose.yml` (and repeated in each service's `RABBITMQ_URL`), with the management dashboard (port 15672) exposed to the host. Addressed by Phase 7.2.
+- [x] **Debug print left in** — the catalogue service's `main` had a `fmt.Println("hej")` debugging leftover.
+- [x] **Panic in repository constructor** — the Clover repository constructor in `course-content-service/internal/repository/clover_content.go` called `panic()` instead of returning an error.
+- [ ] **Missing course returns 500, not 404** — `GetCourse` in `course-catalogue-service/internal/repository/gorm_course_catalogue.go` returns a bare `gorm.ErrRecordNotFound`; gRPC maps an unrecognised error to `Unknown`, and `common.GatewayErrorHandler` maps `Unknown` to 500. So `GET /api/courses/9999` answers `{"code":500,"success":false,"message":"record not found"}` — a client error reported as a server fault, and indistinguishable from a real outage. The course-content service does this correctly, translating its own not-found sentinel into a `NotFound` status at `course-content-service/internal/service/module_service.go`; the fix is the same shape in the catalogue repository or server. Found by the Phase 7.3 evidence run — see [api-examples.md](api-examples.md).
+- [ ] **`AssignmentServer` embeds the interface, not the `Unimplemented` struct** — `assignment-service/internal/server/assignment_server.go` embeds `assignmentpb.AssignmentServiceServer`, a nil value. It is harmless today only because the type implements all nine RPCs by hand; the first one added without an implementation panics the server instead of returning `Unimplemented`. This is the same defect Phase 6 fixed in course-content-service.
 
 ### Test Coverage Gaps
 
-- [ ] **No tests** for `course-catalogue-service`, `notification-service`, or `auth-service`.
-- [ ] **Broken test assertions** — `course-content-service/internal/repository/clover_content_test.go:69-83` compares `UpdatedAt` four times instead of verifying Title, ID, and CourseID. Tests pass but don't actually validate what they claim.
+- [x] **No tests** for `course-catalogue-service`, `notification-service`, or `auth-service`. — stale, re-verified and closed in [7.0](#70-issue-re-verification): all three have server-level tests since `917bb49` (`internal/server/{course,notification,auth}_server_test.go`) and the suite passes.
+- [ ] **Broken test assertions** — `TestCloverModuleRepository_CreateAndGetModule` in `course-content-service/internal/repository/clover_content_test.go` compares `UpdatedAt` four times instead of verifying Title, ID, and CourseID. Tests pass but don't actually validate what they claim. Addressed by Phase 7.1.
 
 ### Structural / Quality Issues
 
-- [ ] **No CI/CD pipeline** — No GitHub Actions, GitLab CI, or any automation.
-- [ ] **No linting/formatting** — No `.golangci.yml` or equivalent.
+
+
 - [ ] **No health check endpoints** — No `/healthz` on any service. No Docker health checks on Go services.
 - [x] **No structured logging** — All services now use `log/slog` with a JSON handler (via shared `common.SetupLogging`) to stdout. Log levels are configurable via `LOG_LEVEL`, request IDs (`x-request-id`) and `user_id` are propagated via gRPC metadata and added to every log record. GORM and go-rabbitmq chatter is routed through slog via `common.NewGormLogger` and `common.RabbitLogger` — all app containers emit pure JSON (verified via `docker compose logs`).
-- [ ] **Port env var ignored** in `course-catalogue-service` and `course-content-service` — hardcoded instead of reading `os.Getenv("PORT")`.
+- [x] **Port env var ignored** in `course-catalogue-service` and `course-content-service` — hardcoded instead of reading `os.Getenv("PORT")`. — stale, re-verified and closed in [7.0](#70-issue-re-verification): both `main` functions read `os.Getenv("PORT")` as of `c370ea0`.
 - [x] **~150 lines of commented-out code** across `course-content-service` (attachment features never implemented).
 - [ ] **Alpha-stage dependency** — CloverDB is at `v2.0.0-alpha.3`. No stability guarantees for production data.
 - [ ] **No rate limiting** on Nginx gateway or any service.
+
+## Phase 7: Rubric Gap Closure
+
+**Goal:** Close the gap between the codebase and the INFS605 marking rubric. The rubric needs `.env.example`, example endpoint responses, screenshots, an enforced lint tool and documented logic. This phase tracks that work plus corrections to the issue list above.
+
+Nothing here is started. The checkboxes are the decision list.
+
+### 7.0 Issue re-verification
+
+Two entries in *Issues and Additional Features* were re-checked against the current code and found stale. Both are ticked off in that section.
+
+- [x] **"No tests for `course-catalogue-service`, `notification-service`, or `auth-service`"** — stale. All three have server-level tests since `917bb49`; suite passes.
+- [x] **"Port env var ignored" in `course-catalogue-service` and `course-content-service`** — stale. Both `main` functions read `os.Getenv("PORT")` as of `c370ea0`.
+
+Still open and confirmed genuine: gRPC unencrypted (`#580`), hardcoded `guest:guest` (`#585`, 8 occurrences in compose rather than 2), no CI (`#596`), no linting (`#597`), no health checks (`#598`), broken test assertions (`#592`), CloverDB alpha (`#602`), no rate limiting (`#603`).
+
+An earlier draft of this section predicted the lint config in 7.1 would pass clean. That was wrong. Measured with `errcheck`, `govet`, `staticcheck`, `ineffassign` and `unused` across all eight modules, the baseline is **19 findings, not zero** — see 7.1.
+
+
+### 7.2 Configuration
+
+- [ ] Add `.env.example` documenting every variable the stack reads: `JWT_SECRET`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `DB_PATH`, `NOSQL_PATH`, `UPLOAD_DIR`, `SEED_DATA`, `LOG_LEVEL`, `TOKEN_TTL_MINUTES`, `HTTP_PORT`, and the six `*_SERVICE_ADDR` values.
+- [ ] Convert the `environment:` values in `docker-compose.yml` to `${VAR:-default}` with defaults identical to today's hardcoded values, so behaviour is unchanged and `.env` becomes a real override rather than a decorative file. Closes `#585`.
+- [ ] Verify with `docker compose config`. `docker-compose.yml` is not covered by any test, so a mistyped interpolation would only surface there.
+- [ ] Document the `cp .env.example .env` step in the README.
+
+### 7.3 Endpoint evidence
+
+- [x] `docker compose up --build`, then exercise all 25 REST endpoints with `curl`, capturing the `Set-Cookie` from login and reusing it for the authenticated calls. Include at least one 401 and one 404, to evidence the auth interceptor and the nginx `/api/` catch-all rather than only the happy paths.
+- [x] Write `docs/api-examples.md` with the real request and response pair per endpoint, and link it from the README.
+
+Responses must be captured from a real run. Hand-written examples would not be evidence of anything.
+
+**Result.** All 25 endpoints exercised and captured on a clean `docker compose down -v` run at `90cf51b`, plus four failure cases: 401 with no token on a unary route, 401 on both streaming file routes, the nginx catch-all 404, and a service-level 404 for a missing module. `docs/api-examples.md` writes up three of them — login, enrol, notifications — because those three between them cover the session boundary, the gateway's regex disambiguation, request-id correlation end to end, and the asynchronous path. The other 22 were exercised and checked in the same run, but are not written up individually.
+
+The count is **25, not 24** as this section originally said: 18 paths / 23 operations in `proto/openapi/osbourne.swagger.json`, plus the two hand-written `HandlePath` file routes, which have no proto annotation by design.
+
+Two things the run turned up, neither of which was predicted:
+
+- **Starting the consumers before auth-service is load-bearing.** `auth-service` publishes `account.created` for the two seed accounts at startup, onto a topic exchange. Brought up in one `docker compose up`, a consumer whose queue is not yet bound simply never sees those events, and the profile rows and the welcome notifications do not exist at all. The evidence run starts `rabbitmq profile-service notification-service` first, waits for both consumers to log that they are listening, then brings up the rest. The enrolment- and grading-triggered notifications do not have this problem — they are published long after everything is up.
+- **`GET /api/courses/9999` returns 500, not 404.** Recorded below as a new issue.
+
+
+
+### 7.5 Comment policy reversal
+
+The rubric awards marks for documented logic, and the `cmd/main.go` files are the first thing a grader opens. Stripping their comments cost more than the clutter was worth, so this reverses part of the cleanup in `dd799d1`.
+
+The `// 1. Database Initialization` style section headers stay deleted. They described the code rather than explaining it.
+
+### 7.6 Housekeeping
+
+- [x] Delete the untracked, superseded `services/` tree. It is the pre-`go.work` layout and holds a full copy of every service's generated protobuf code. Safe to remove: untracked, and not referenced by `go.work`.
+- [x] Decide whether `admin/` belongs in the submission repo. It holds three committed PDFs, including `Marking-Rubric.pdf`.
+  - It does not.

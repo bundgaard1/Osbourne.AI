@@ -7,47 +7,7 @@ Osborne.AI is a Student Services Dashboard built with a microservices architectu
 
 Every service runs a **dual listener**: a gRPC server for internal service-to-service traffic, and a grpc-gateway REST listener that fronts that same gRPC server. The REST listener is what the browser reaches, and it deliberately dials gRPC over loopback rather than calling the implementation in-process, so the same interceptors that guard internal traffic also guard browser traffic.
 
-```mermaid
----
-config:
-  theme: dark
----
-graph LR;
-    U[Browser] -->|HTTP/80| B[API Gateway <br/> Nginx]
-
-    subgraph FE ["Frontend (HTML only)"]
-        F[Frontend UI]
-    end
-
-    subgraph BE ["Backend Services (dual listener)"]
-        direction TD
-        subgraph Col1 [" "]
-            direction LR
-            H["AUTH Service"]
-            C["Profile Service"]
-            G["Notification Service"]
-        end
-
-        subgraph Col2 [" "]
-            direction LR
-            D["Course Catalogue Service"]
-            E["Course Content Service"]
-            J["Assignment Service"]
-        end
-    end
-
-    subgraph MQ ["Message Queue (async events)"]
-        Q[("RabbitMQ <br/> university.events (topic, durable)")]
-    end
-
-    B -->|/api/*| BE
-    B -->|everything else| FE
-    FE -->|gRPC| BE
-    BE -.->|Events| MQ
-
-    style Col1 fill:none,stroke:none
-    style Col2 fill:none,stroke:none
-```
+![Architecture diagram](arch-diagram.png)
 
 # Communication
 
