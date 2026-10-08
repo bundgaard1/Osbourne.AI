@@ -97,9 +97,17 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback rather than
+	// calling the implementation in-process. Going through gRPC is what makes
+	// common.AuthInterceptor run on browser traffic: without it every REST call
+	// would reach GetUserProfile with no JWT claims in context, and
+	// UserIDFromContextOrRequest would fall back to a request body the browser
+	// controls.
 	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
 		return profile.RegisterProfileServiceHandlerFromEndpoint(
 			context.Background(), mux, "localhost:"+port,
+			// Loopback only: the REST listener and the gRPC server are one
+			// process and the traffic never leaves the container.
 			[]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
 		)
 	})
@@ -121,6 +129,8 @@ func main() {
 
 	slog.Info("received shutdown signal, shutting down gracefully")
 
+	// REST first: in-flight requests are still waiting on a loopback gRPC call,
+	// so stopping gRPC first would cut them off mid-translation.
 	if err := gateway.ShutdownWithTimeout(); err != nil {
 		slog.Warn("REST listener did not drain cleanly", "err", err)
 	}

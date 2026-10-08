@@ -5,32 +5,31 @@ Cross-checked against `tips-from-bingji.md` and the open items in `docs/plan.md`
 
 ## A. Code fixes
 
-- [ ] **`.env.example`** (plan 7.2, scoped) — create `.env.example` listing every var the
+- [x] **`.env.example`** (plan 7.2, scoped) — created `.env.example` listing every var the
   stack reads (`JWT_SECRET`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`,
   `DB_PATH`, `NOSQL_PATH`, `UPLOAD_DIR`, `SEED_DATA`, `LOG_LEVEL`, `TOKEN_TTL_MINUTES`,
   `HTTP_PORT`, and the six `*_SERVICE_ADDR`), defaults identical to today's hardcoded values.
   **No compose interpolation** — `guest:guest` stays and becomes a documented known limitation.
-  Add `cp .env.example .env` to README setup. Verify with `docker compose config`.
-- [ ] **500 → 404 bug** (plan #588) — `GetCourse` in
-  `course-catalogue-service/internal/repository/gorm_course_catalogue.go` returns a bare
-  `gorm.ErrRecordNotFound` → `Unknown` → HTTP 500. Map it to gRPC `NotFound` (same shape as
-  course-content's sentinel in `module_service.go`), add a test. Then capture a real
-  `GET /api/courses/9999` → 404 into `docs/api-examples.md` failure cases.
-- [ ] **Broken test assertions** (plan #592) — `TestCloverModuleRepository_CreateAndGetModule`
+  Added `cp .env.example .env` to README setup. Verified with `docker compose config`.
+- [x] **500 → 404 bug** (plan #588) — `GetCourse` in
+  `course-catalogue-service/internal/repository/gorm_course_catalogue.go` returned a bare
+  `gorm.ErrRecordNotFound` → `Unknown` → HTTP 500. Repository now maps it to `domain.ErrNotFound`,
+  service translates to gRPC `NotFound` (same shape as course-content's sentinel in
+  `module_service.go`); regression test `TestGetCourseMissingReturns404` added. Remaining: capture
+  a real `GET /api/courses/9999` → 404 into `docs/api-examples.md` failure cases (needs a live stack).
+- [x] **Broken test assertions** (plan #592) — `TestCloverModuleRepository_CreateAndGetModule`
   in `course-content-service/internal/repository/clover_content_test.go` compares `UpdatedAt`
   four times; assert Title, ID, CourseID instead (lines ~73–86).
-- [ ] **`AssignmentServer` embed** (plan #589) —
+- [x] **`AssignmentServer` embed** (plan #589) —
   `assignment-service/internal/server/assignment_server.go:22` embeds the *interface*
   (nil value); switch to `UnimplementedAssignmentServiceServer`. Build + test.
-- [ ] **nginx JSON error_page for 502/503/504** — currently a down backend returns nginx's
-  default HTML, breaking the JSON error contract. Add `error_page 502 503 504 = @json_error`
-  (shared `{"code":…,"success":false,"message":…}` shape) in `nginx.conf`.
-- [ ] **gRPC deadlines in frontend** — no call ever sets a deadline, so a hung service hangs
-  the request (Bingji: "does it wait indefinitely?"). Add ~10 s `context.WithTimeout` in
-  `Handler.authCtx` (`frontend/internal/handler/handler.go:147`, 13 call sites) plus the
-  pre-auth profile fetch in `Authenticate`. `DeadlineExceeded→503` mapping already exists and
-  is tested (`enroll_test.go:183`). Add a small test asserting `authCtx` yields a deadline.
-- [ ] **Phase 7.5 comment restoration** — restore the 6 condensed comment blocks in
+- [x] **gRPC deadlines in frontend** — no call ever set a deadline, so a hung service hung
+  the request (Bingji: "does it wait indefinitely?"). Added a 10 s `context.WithTimeout` in
+  `Handler.authCtx` (`frontend/internal/handler/handler.go`, covers all 10 page-handler call
+  sites in `pages.go`) plus the pre-auth profile fetch in `Authenticate`.
+  `DeadlineExceeded→503` mapping already exists and is tested (`enroll_test.go:183`).
+  Added `TestAuthCtxSetsADeadline` asserting `authCtx` yields a deadline.
+- [x] **Phase 7.5 comment restoration** — restored the 6 condensed comment blocks in
   `auth-service`, `assignment-service`, `profile-service` `cmd/main.go`
   (loopback creds safe / no interceptor on login / token stripped from body /
   stream interceptor / loopback REST self-dial / shutdown order).

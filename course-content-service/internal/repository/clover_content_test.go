@@ -59,9 +59,6 @@ func TestCloverModuleRepository_CreateAndGetModule(t *testing.T) {
 		t.Fatalf("expected no error on create, got %v", err)
 	}
 
-	// LogAllModules(t, repo)
-
-	// 2. Test Get
 	fetched, err := repo.GetModule(ctx, inputModule.ID)
 	if err != nil {
 		t.Fatalf("expected no error on get, got %v", err)
@@ -70,18 +67,18 @@ func TestCloverModuleRepository_CreateAndGetModule(t *testing.T) {
 		t.Fatal("expected module to be found, got nil")
 	}
 
-	if !fetched.UpdatedAt.Equal(inputModule.UpdatedAt) {
-		t.Errorf("expected title %s, got %s", inputModule.Title, fetched.Title)
-	}
-
-	if !fetched.UpdatedAt.Equal(inputModule.UpdatedAt) {
+	if fetched.ID != inputModule.ID {
 		t.Errorf("expected ID %s, got %s", inputModule.ID, fetched.ID)
 	}
-
-	if !fetched.UpdatedAt.Equal(inputModule.UpdatedAt) {
+	if fetched.CourseID != inputModule.CourseID {
 		t.Errorf("expected CourseID %s, got %s", inputModule.CourseID, fetched.CourseID)
 	}
-
+	if fetched.Title != inputModule.Title {
+		t.Errorf("expected Title %s, got %s", inputModule.Title, fetched.Title)
+	}
+	if fetched.Text != inputModule.Text {
+		t.Errorf("expected Text %s, got %s", inputModule.Text, fetched.Text)
+	}
 	if !fetched.UpdatedAt.Equal(inputModule.UpdatedAt) {
 		t.Errorf("expected UpdatedAt %v, got %v", inputModule.UpdatedAt, fetched.UpdatedAt)
 	}

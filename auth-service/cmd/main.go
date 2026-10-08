@@ -35,6 +35,9 @@ func main() {
 	jwtSecret := getEnv("JWT_SECRET", "dev-secret-change-me")
 	tokenTTL := time.Duration(getEnvInt("TOKEN_TTL_MINUTES", 120)) * time.Minute
 
+	// Loopback only: the REST listener and the gRPC server are the same process
+	// and the traffic never leaves the container, so there is nothing to encrypt
+	// and nothing to authenticate. Every other service uses the same pair.
 	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
 	lis, err := net.Listen("tcp", ":"+port)
@@ -77,6 +80,9 @@ func main() {
 	})
 	authGrpcServer := server.NewAuthServer(authSvc, tokenTTL)
 
+	// The service authenticates nobody: Login, ValidateToken and Logout are all
+	// reachable without a token, which is the point of them. Every other
+	// service installs common.AuthInterceptor.
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(common.RequestLoggerInterceptor()),
 	)
@@ -90,11 +96,20 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback rather than
+	// calling the implementation in-process, so common.AuthInterceptor and
+	// common.RequestLoggerInterceptor still apply to browser traffic.
 	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
 		return auth.RegisterAuthServiceHandlerFromEndpoint(
 			context.Background(), mux, "localhost:"+port, dialOpts,
 		)
 	},
+		// The token is delivered to the browser as an HttpOnly cookie. Leaving
+		// it in the JSON body as well would mean any XSS on the login page could
+		// read it straight out of the response, which defeats the point of
+		// HttpOnly. The gRPC path keeps the token: the frontend's SSR handlers
+		// call Login over gRPC and need it, and this option only runs on the
+		// HTTP response.
 		runtime.WithForwardResponseOption(redactLoginToken),
 	)
 	if err != nil {
@@ -115,6 +130,8 @@ func main() {
 
 	slog.Info("received shutdown signal, shutting down gracefully")
 
+	// REST is drained first: every in-flight request is still waiting on a
+	// loopback gRPC call, so stopping gRPC first would fail them mid-translation.
 	if err := gateway.ShutdownWithTimeout(); err != nil {
 		slog.Warn("REST listener did not drain cleanly", "err", err)
 	}

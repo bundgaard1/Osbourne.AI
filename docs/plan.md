@@ -585,13 +585,13 @@ The request id is also echoed back in an `X-Request-Id` response header, using `
 - [ ] **Hardcoded `guest:guest` RabbitMQ credentials** in the `rabbitmq` service block of `docker-compose.yml` (and repeated in each service's `RABBITMQ_URL`), with the management dashboard (port 15672) exposed to the host. Addressed by Phase 7.2.
 - [x] **Debug print left in** — the catalogue service's `main` had a `fmt.Println("hej")` debugging leftover.
 - [x] **Panic in repository constructor** — the Clover repository constructor in `course-content-service/internal/repository/clover_content.go` called `panic()` instead of returning an error.
-- [ ] **Missing course returns 500, not 404** — `GetCourse` in `course-catalogue-service/internal/repository/gorm_course_catalogue.go` returns a bare `gorm.ErrRecordNotFound`; gRPC maps an unrecognised error to `Unknown`, and `common.GatewayErrorHandler` maps `Unknown` to 500. So `GET /api/courses/9999` answers `{"code":500,"success":false,"message":"record not found"}` — a client error reported as a server fault, and indistinguishable from a real outage. The course-content service does this correctly, translating its own not-found sentinel into a `NotFound` status at `course-content-service/internal/service/module_service.go`; the fix is the same shape in the catalogue repository or server. Found by the Phase 7.3 evidence run — see [api-examples.md](api-examples.md).
-- [ ] **`AssignmentServer` embeds the interface, not the `Unimplemented` struct** — `assignment-service/internal/server/assignment_server.go` embeds `assignmentpb.AssignmentServiceServer`, a nil value. It is harmless today only because the type implements all nine RPCs by hand; the first one added without an implementation panics the server instead of returning `Unimplemented`. This is the same defect Phase 6 fixed in course-content-service.
+- [x] **Missing course returns 500, not 404** — `GetCourse` in `course-catalogue-service/internal/repository/gorm_course_catalogue.go` returned a bare `gorm.ErrRecordNotFound`; gRPC mapped an unrecognised error to `Unknown`, and `common.GatewayErrorHandler` maps `Unknown` to 500. The repository now translates GORM's sentinel into `domain.ErrNotFound`, which the service turns into a gRPC `NotFound` (404) — the same shape course-content uses in `module_service.go`. Regression test: `TestGetCourseMissingReturns404`. The real `GET /api/courses/9999` response still needs a live-stack capture into `api-examples.md`.
+- [x] **`AssignmentServer` embeds the interface, not the `Unimplemented` struct** — `assignment-service/internal/server/assignment_server.go` embedded `assignmentpb.AssignmentServiceServer`, a nil value. It was harmless only because the type implements all nine RPCs by hand; the first one added without an implementation would have panicked the server instead of returning `Unimplemented`. Switched to `assignmentpb.UnimplementedAssignmentServiceServer`.
 
 ### Test Coverage Gaps
 
 - [x] **No tests** for `course-catalogue-service`, `notification-service`, or `auth-service`. — stale, re-verified and closed in [7.0](#70-issue-re-verification): all three have server-level tests since `917bb49` (`internal/server/{course,notification,auth}_server_test.go`) and the suite passes.
-- [ ] **Broken test assertions** — `TestCloverModuleRepository_CreateAndGetModule` in `course-content-service/internal/repository/clover_content_test.go` compares `UpdatedAt` four times instead of verifying Title, ID, and CourseID. Tests pass but don't actually validate what they claim. Addressed by Phase 7.1.
+- [x] **Broken test assertions** — `TestCloverModuleRepository_CreateAndGetModule` in `course-content-service/internal/repository/clover_content_test.go` compared `UpdatedAt` four times instead of verifying Title, ID, and CourseID. Tests passed but didn't validate what they claimed. Addressed by Phase 7.1: the test now asserts ID, CourseID, Title, and Text.
 
 ### Structural / Quality Issues
 
@@ -624,10 +624,10 @@ An earlier draft of this section predicted the lint config in 7.1 would pass cle
 
 ### 7.2 Configuration
 
-- [ ] Add `.env.example` documenting every variable the stack reads: `JWT_SECRET`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `DB_PATH`, `NOSQL_PATH`, `UPLOAD_DIR`, `SEED_DATA`, `LOG_LEVEL`, `TOKEN_TTL_MINUTES`, `HTTP_PORT`, and the six `*_SERVICE_ADDR` values.
-- [ ] Convert the `environment:` values in `docker-compose.yml` to `${VAR:-default}` with defaults identical to today's hardcoded values, so behaviour is unchanged and `.env` becomes a real override rather than a decorative file. Closes `#585`.
-- [ ] Verify with `docker compose config`. `docker-compose.yml` is not covered by any test, so a mistyped interpolation would only surface there.
-- [ ] Document the `cp .env.example .env` step in the README.
+- [x] Add `.env.example` documenting every variable the stack reads: `JWT_SECRET`, `RABBITMQ_URL`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, `DB_PATH`, `NOSQL_PATH`, `UPLOAD_DIR`, `SEED_DATA`, `LOG_LEVEL`, `TOKEN_TTL_MINUTES`, `HTTP_PORT`, and the six `*_SERVICE_ADDR` values.
+- [ ] Convert the `environment:` values in `docker-compose.yml` to `${VAR:-default}` with defaults identical to today's hardcoded values, so behaviour is unchanged and `.env` becomes a real override rather than a decorative file. — **deliberately deferred**: `guest:guest` stays, documented as a known limitation instead. Closes `#585` as "documented", not fixed.
+- [x] Verify with `docker compose config`. `docker-compose.yml` is not covered by any test, so a mistyped interpolation would only surface there.
+- [x] Document the `cp .env.example .env` step in the README.
 
 ### 7.3 Endpoint evidence
 

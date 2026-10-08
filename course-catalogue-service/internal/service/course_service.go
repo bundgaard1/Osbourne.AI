@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"osbourne.local/course-catalogue-service/internal/domain"
 )
 
@@ -19,8 +21,23 @@ func NewCourseService(repo domain.CourseCatalogueRepository, events domain.Event
 	return &CourseService{repo: repo, events: events}
 }
 
+// notFoundStatus translates the repository's sentinel into a gRPC NotFound.
+//
+// The status code is what the gateway turns into HTTP 404. Passed through raw,
+// gorm.ErrRecordNotFound becomes an Unknown status and the gateway answers 500.
+func notFoundStatus(courseID string, err error) error {
+	if errors.Is(err, domain.ErrNotFound) {
+		return status.Errorf(codes.NotFound, "course %s was not found", courseID)
+	}
+	return err
+}
+
 func (s *CourseService) GetCourse(ctx context.Context, courseID string) (*domain.Course, error) {
-	return s.repo.GetCourse(ctx, courseID)
+	course, err := s.repo.GetCourse(ctx, courseID)
+	if err != nil {
+		return nil, notFoundStatus(courseID, err)
+	}
+	return course, nil
 }
 
 func (s *CourseService) ListCourses(ctx context.Context, page int32, pageSize int32) ([]*domain.Course, int32, error) {

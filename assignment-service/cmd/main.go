@@ -132,6 +132,11 @@ func main() {
 			common.AuthInterceptor(cfg.JWTSecret),
 			common.RequestLoggerInterceptor(),
 		),
+		// AuthInterceptor is unary-only, so without this both streaming RPCs were
+		// reachable with no token at all: SubmitAssignment accepted any uploader
+		// id and DownloadSubmission served any submission. The interceptor puts
+		// the verified claims in the stream context, which is where
+		// SubmitAssignment now reads the uploader from.
 		grpc.ChainStreamInterceptor(
 			common.AuthStreamInterceptor(cfg.JWTSecret),
 		),
@@ -155,6 +160,12 @@ func main() {
 		}
 	}()
 
+	// The REST listener dials this same gRPC server over loopback, so browser
+	// traffic passes the same interceptor chain as any other gRPC caller.
+	//
+	// The two streaming routes are not in the generated mux: their HTTP shapes
+	// (a multipart upload in, a binary file out) do not match a JSON body, so
+	// httpapi registers them by hand.
 	gateway, err := common.NewGateway(func(mux *runtime.ServeMux) error {
 		if err := assignment.RegisterAssignmentServiceHandlerFromEndpoint(
 			context.Background(), mux, "localhost:"+cfg.GRPCPort,
@@ -179,6 +190,10 @@ func main() {
 	<-shutdownCtx.Done()
 	slog.Info("shutting down assignment-service...")
 
+	// REST is drained first: in-flight requests are still waiting on a loopback
+	// gRPC call, and a download can legitimately be streaming when the signal
+	// arrives, so give the listener a chance to finish before the gRPC server
+	// goes away underneath it.
 	if err := gateway.ShutdownWithTimeout(); err != nil {
 		slog.Warn("REST listener did not drain cleanly", "err", err)
 	}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"gorm.io/gorm"
 	"osbourne.local/course-catalogue-service/internal/domain"
@@ -18,6 +19,13 @@ func NewGORMCourseCatalogueRepository(db *gorm.DB) *GORMCourseCatalogueRepositor
 func (r *GORMCourseCatalogueRepository) GetCourse(ctx context.Context, courseID string) (*domain.Course, error) {
 	var course domain.Course
 	if err := r.db.WithContext(ctx).First(&course, "id = ?", courseID).Error; err != nil {
+		// GORM's sentinel becomes the domain sentinel so the service layer can
+		// translate it into a gRPC NotFound. Returned raw, it reaches the
+		// gateway as an Unknown -> HTTP 500, making a missing course
+		// indistinguishable from a real outage.
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
 	return &course, nil

@@ -19,8 +19,10 @@ import (
 func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	currentUser := UserFromContext(r.Context())
 
+	gctx, cancel := h.authCtx(r.Context())
+	defer cancel()
 	res, err := h.clients.CourseCatalogue.Client.ListEnrolledCourses(
-		h.authCtx(r.Context()),
+		gctx,
 		&coursecatalogue.ListEnrolledCoursesRequest{
 			UserId: currentUser.ID,
 		},
@@ -40,8 +42,10 @@ func (h *Handler) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 	currentUser := UserFromContext(r.Context())
 
+	gctx, cancel := h.authCtx(r.Context())
+	defer cancel()
 	res, err := h.clients.Profile.Client.GetUserProfile(
-		h.authCtx(r.Context()),
+		gctx,
 		&profile.ProfileRequest{UserId: currentUser.ID},
 	)
 
@@ -61,8 +65,10 @@ func (h *Handler) HandleProfile(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleNotifications(w http.ResponseWriter, r *http.Request) {
 	user := UserFromContext(r.Context())
 
+	gctx, cancel := h.authCtx(r.Context())
+	defer cancel()
 	res, err := h.clients.Notification.Client.GetUserNotifications(
-		h.authCtx(r.Context()),
+		gctx,
 		&notification.NotificationsRequest{UserId: user.ID},
 	)
 	if err != nil {
@@ -79,8 +85,10 @@ func (h *Handler) HandleNotifications(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleCourseCatalog(w http.ResponseWriter, r *http.Request) {
 	user := UserFromContext(r.Context())
 
+	gctx, cancel := h.authCtx(r.Context())
+	defer cancel()
 	res, err := h.clients.CourseCatalogue.Client.ListCourses(
-		h.authCtx(r.Context()),
+		gctx,
 		&coursecatalogue.ListCoursesRequest{
 			Page:     1,
 			PageSize: 10,
@@ -101,8 +109,10 @@ func (h *Handler) HandleCoursePage(w http.ResponseWriter, r *http.Request) {
 	user := UserFromContext(r.Context())
 	courseID := chi.URLParam(r, "courseID")
 
+	gctx, cancel := h.authCtx(r.Context())
+	defer cancel()
 	res, err := h.clients.CourseCatalogue.Client.GetCourse(
-		h.authCtx(r.Context()),
+		gctx,
 		&coursecatalogue.GetCourseRequest{CourseId: courseID},
 	)
 
@@ -111,8 +121,10 @@ func (h *Handler) HandleCoursePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gctx, cancel = h.authCtx(r.Context())
+	defer cancel()
 	res2, err := h.clients.CourseContent.Client.ListModulesByCourseID(
-		h.authCtx(r.Context()),
+		gctx,
 		&coursecontent.ListModulesByCourseIDRequest{CourseId: courseID},
 	)
 
@@ -122,8 +134,10 @@ func (h *Handler) HandleCoursePage(w http.ResponseWriter, r *http.Request) {
 	}
 	modules := toDomainModules(res2.GetModules())
 
+	gctx, cancel = h.authCtx(r.Context())
+	defer cancel()
 	res3, err := h.clients.Assignment.Client.GetCourseAssignments(
-		h.authCtx(r.Context()),
+		gctx,
 		&assignment.GetCourseAssignmentsRequest{CourseId: courseID},
 	)
 	if err != nil {
@@ -146,8 +160,10 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 	user := UserFromContext(r.Context())
 	assignmentID := chi.URLParam(r, "assignmentID")
 
+	gctx, cancel := h.authCtx(r.Context())
+	defer cancel()
 	assignmentsRes, err := h.clients.Assignment.Client.GetAssignment(
-		h.authCtx(r.Context()),
+		gctx,
 		&assignment.GetAssignmentRequest{
 			AssignmentId: assignmentID,
 		},
@@ -161,8 +177,10 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(user.Role, "student") {
 		// Students only ever see their own submissions; the list is scoped by
 		// the authenticated identity in the assignment service.
+		gctx, cancel := h.authCtx(r.Context())
+		defer cancel()
 		myRes, err := h.clients.Assignment.Client.ListMySubmissions(
-			h.authCtx(r.Context()),
+			gctx,
 			&assignment.ListMySubmissionsRequest{AssignmentId: assignmentID},
 		)
 		if err != nil {
@@ -171,10 +189,12 @@ func (h *Handler) HandleAssignmentPage(w http.ResponseWriter, r *http.Request) {
 		}
 		submissions = toDomainSubmissions(myRes.GetSubmissions())
 	} else {
-		submissionsRes, err := h.clients.Assignment.Client.ListSubmissions(
-			h.authCtx(r.Context()),
-			&assignment.ListSubmissionsRequest{AssignmentId: assignmentID},
-		)
+		gctx, cancel := h.authCtx(r.Context())
+			defer cancel()
+			submissionsRes, err := h.clients.Assignment.Client.ListSubmissions(
+				gctx,
+				&assignment.ListSubmissionsRequest{AssignmentId: assignmentID},
+			)
 		if err != nil {
 			fetchError(w, r, "Could not fetch assignment submissions", err)
 			return

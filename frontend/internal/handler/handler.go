@@ -24,6 +24,12 @@ const userKey contextKey = "currentUser"
 // after a successful login.
 const sessionCookieName = "osbourne_session"
 
+// grpcCallTimeout bounds every outgoing gRPC call the frontend makes. Without
+// it a service that has hung would hold the page render forever; with it the
+// call fails DeadlineExceeded, which grpcToHTTPStatus maps to a 503 the user can
+// act on instead of a browser tab that spins.
+const grpcCallTimeout = 10 * time.Second
+
 type Handler struct {
 	clients   *grpcclient.Clients
 	jwtSecret string
@@ -125,8 +131,10 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 		// the context yet — that is what is being resolved. Without it this call
 		// is the one gRPC hop of every page render that cannot be correlated with
 		// the page request that caused it.
+		gctx, cancel := context.WithTimeout(h.reqIDCtx(ctx), grpcCallTimeout)
+		defer cancel()
 		res, err := h.clients.Profile.Client.GetUserProfile(
-			common.AttachToken(h.reqIDCtx(ctx), user.Token),
+			common.AttachToken(gctx, user.Token),
 			&profile.ProfileRequest{UserId: user.ID},
 		)
 		if err == nil {
@@ -142,14 +150,16 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 }
 
 // authCtx returns a context that attaches the current user's bearer token and
-// the request id to outgoing gRPC metadata. Every backend service verifies
+// the request id to outgoing gRPC metadata, bounded by a deadline so a hung
+// service cannot hang the page render forever. Every backend service verifies
 // this token and can correlate on the request id.
-func (h *Handler) authCtx(ctx context.Context) context.Context {
+func (h *Handler) authCtx(ctx context.Context) (context.Context, context.CancelFunc) {
 	ctx = h.reqIDCtx(ctx)
+	ctx, cancel := context.WithTimeout(ctx, grpcCallTimeout)
 	if u, ok := ctx.Value(userKey).(domain.User); ok && u.Token != "" {
-		return common.AttachToken(ctx, u.Token)
+		ctx = common.AttachToken(ctx, u.Token)
 	}
-	return ctx
+	return ctx, cancel
 }
 
 // reqIDCtx appends the current request id to outgoing gRPC metadata so backend

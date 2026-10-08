@@ -19,7 +19,7 @@ import (
 )
 
 type AssignmentServer struct {
-	assignmentpb.AssignmentServiceServer
+	assignmentpb.UnimplementedAssignmentServiceServer
 	svc *service.AssignmentService
 }
 

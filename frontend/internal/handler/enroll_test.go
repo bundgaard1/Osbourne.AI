@@ -170,6 +170,25 @@ func TestCoursePageNotFound(t *testing.T) {
 	}
 }
 
+// Every gRPC call the frontend makes must be bounded, or a hung service would
+// hold the page render forever. authCtx is the single funnel for the page
+// handlers' calls, so if it yields a deadline every one of them is covered.
+func TestAuthCtxSetsADeadline(t *testing.T) {
+	h := &Handler{}
+
+	ctx, cancel := h.authCtx(context.Background())
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("authCtx context has no deadline")
+	}
+	// Allow a little slack for the elapsed time between WithTimeout and here.
+	if remaining := time.Until(deadline); remaining <= 9*time.Second || remaining > grpcCallTimeout {
+		t.Errorf("deadline expires in %v, want ~%v", remaining, grpcCallTimeout)
+	}
+}
+
 func TestGRPCToHTTPStatus(t *testing.T) {
 	cases := []struct {
 		name string

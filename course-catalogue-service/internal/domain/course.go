@@ -1,6 +1,13 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+// ErrNotFound is returned by the repository when a lookup matches no record.
+// The service translates it into a gRPC NotFound so the gateway can report 404.
+var ErrNotFound = errors.New("not found")
 
 type Course struct {
 	ID          string    `gorm:"primaryKey" json:"id"`             // f.eks. "261605" (real DB ID)

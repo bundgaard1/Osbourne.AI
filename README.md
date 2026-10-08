@@ -16,6 +16,7 @@ Run the following commands to set up the project:
 
 ```bash
 make generate   # Generates protobufs/gRPC stubs and the frontend templ code
+cp .env.example .env   # Optional: override configuration (defaults match the code)
 docker compose up --build   # Builds and starts all services in Docker containers
 ```
 
@@ -51,7 +52,7 @@ Make a video of the system in action,
 - Frontend is a server-rendered web UI built with **Go + Templ** and the `chi` router. It serves HTML and nothing else.
 - API Gateway is built on **Nginx**; it routes `/api/*` to the owning service and everything else to the frontend, and it injects `X-Request-ID`.
 - Every backend service exposes a **dual listener**: a gRPC server for internal service-to-service calls, and a **grpc-gateway** REST listener in front of that same gRPC server for browser traffic.
-- **Synchronous** inter-service calls use **gRPC** (Protobuf).
+- **Synchronous** inter-service calls use **gRPC**.
 - **Asynchronous** event processing uses **RabbitMQ** (durable `university.events` topic exchange).
 - **Per-service databases**: each service owns an embedded **SQLite** database (GORM), with the exception of the Course Content Service which uses the **CloverDB** document store. There is no shared database.
 

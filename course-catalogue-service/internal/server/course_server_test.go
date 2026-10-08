@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +157,33 @@ func TestListCoursesRequiresAToken(t *testing.T) {
 	rec := do(t, mux, http.MethodGet, "/api/courses", "", nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401 for an anonymous browse; body %s", rec.Code, rec.Body)
+	}
+}
+
+// A missing course is a client error, not a fault in the catalogue. The
+// repository sentinel must translate into gRPC NotFound (-> HTTP 404); passed
+// through raw it would surface as a 500, indistinguishable from an outage.
+func TestGetCourseMissingReturns404(t *testing.T) {
+	mux, _ := newTestGateway(t)
+
+	rec := do(t, mux, http.MethodGet, "/api/courses/nope", tokenFor(t, "student-1"), nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body %s", rec.Code, rec.Body)
+	}
+
+	var got struct {
+		Code    int    `json:"code"`
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("body %q is not the gateway error shape: %v", rec.Body.String(), err)
+	}
+	if got.Code != http.StatusNotFound || got.Success {
+		t.Errorf("got %+v, want code 404 with success=false", got)
+	}
+	if !strings.Contains(got.Message, "nope") {
+		t.Errorf("message %q does not name the missing course", got.Message)
 	}
 }
 
