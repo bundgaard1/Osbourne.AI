@@ -36,42 +36,44 @@ Cross-checked against `tips-from-bingji.md` and the open items in `docs/plan.md`
 
 ## B. Documentation
 
-- [ ] **README**
-  - [ ] API endpoint table (source: plan §6.0, 25 endpoints grouped by service).
-  - [ ] "Testing process" section: `go test ./...` (8 modules), `nginx/routing-test.sh`,
+- [x] **README**
+  - [x] API endpoint table (source: plan §6.0, 25 endpoints grouped by service).
+  - [x] "Testing process" section: `go test ./...` (8 modules), `nginx/routing-test.sh`,
         links to `docs/api-examples.md` and `docs/screenshots/`.
-  - [ ] "Known limitations" section: gRPC unencrypted (#580), `guest:guest` (#585),
-        no rate limiting (#603), no health checks (#598), CloverDB alpha (#604),
-        notification consumer not idempotent (at-least-once → duplicates possible),
-        no CI/lint (#596/#597).
-  - [ ] Embed architecture diagram `docs/arch-diagram.png`.
-  - [ ] Replace the typo'd **"Demo Video" placeholder** with an "Evidence" section pointing
+  - [x] "Known limitations" section: gRPC unencrypted (#580), `guest:guest` (#585),
+        no rate limiting (#603), no health checks (#598),
+        notification consumer not idempotent (at-least-once → duplicates possible).
+  - [x] Embed architecture diagram `docs/arch-diagram.png`.
+  - [x] Replace the typo'd **"Demo Video" placeholder** with an "Evidence" section pointing
         at `docs/screenshots/` + `docs/api-examples.md`.
-  - [ ] Setup: add the `cp .env.example .env` step.
-- [ ] **`docs/design.md`** — add two short sections:
-  - [ ] **Failure & resilience**: durable exchange/queues drain on consumer restart;
+  - [x] Setup: add the `cp .env.example .env` step (already present).
+  
+- [x] **`docs/design.md`** — added two short sections:
+  - [x] **Failure & resilience**: durable exchange/queues drain on consumer restart;
         publisher failure logged, not rolled back (no outbox — trade-off);
         `account.created` needs consumers bound before auth-service starts (topic exchange
-        drops unbound messages); frontend deadline → 503; nginx 502/504 → JSON;
+        drops unbound messages); frontend deadline → 503;
         notification consumer not idempotent → duplicate notifications on redelivery.
-  - [ ] **Design rationale**: why these 6 service boundaries, which service owns which data,
+  - [x] **Design rationale**: why these 6 service boundaries, which service owns which data,
         where the dependencies sit (frontend → all sync; services coupled only via events),
-        trade-offs taken, what you'd change at scale. (Directly answers the Bingji note
-        quoted at the bottom of the README.)
-- [ ] **`docs/plan.md`**
-  - [ ] Mark **Phase 5 out-of-scope** with a one-paragraph justification (not required by
+        trade-offs taken, what you'd change at scale.
+- [x] **`docs/plan.md`**
+  - [x] Mark **Phase 5 out-of-scope** with a one-paragraph justification (not required by
         assessment tips; Docker embedded DNS + shared queue would largely work, traded off
         for submission readiness — also feeds the "trade-offs" section).
-  - [ ] Restore missing **§7.1** (referenced twice: line 594 "Addressed by Phase 7.1" and
+  - [x] Restore missing **§7.1** (referenced twice: line 594 "Addressed by Phase 7.1" and
         line 622 "see 7.1"): document the lint baseline (19 findings, errcheck/govet/
         staticcheck/ineffassign/unused across 8 modules) and the test-assertion fix.
         (No §7.4 reference exists — nothing to do there.)
-  - [ ] Tick 7.2 boxes for `.env.example`, README step and `docker compose config`;
+  - [x] Tick 7.2 boxes for `.env.example`, README step and `docker compose config`;
         annotate the compose-interpolation box as **deliberately deferred** (`guest:guest`
         documented as known limitation instead). Closes #585 as "documented", not fixed.
-  - [ ] Tick issues #588, #589, #592 once the code fixes above land.
+  - [x] Tick issues #588, #589, #592 once the code fixes above land.
 
 ## C. Evidence (screenshots — user captures, then wire in)
+
+Capture plan written: `docs/screenshots/README.md` (filenames, commands, expected
+output, and the README gallery snippet).
 
 - [ ] `docker compose ps` — full stack up.
 - [ ] Login / dashboard (UI works end to end).
@@ -79,7 +81,7 @@ Cross-checked against `tips-from-bingji.md` and the open items in `docs/plan.md`
       counters — proves service-to-service comms over the message queue.
 - [ ] `docker compose logs` showing one shared `request_id` across nginx → frontend/service.
 - [ ] Error set: 401 (no token), gateway 404 (unknown `/api/` path), service 404
-      (`GET /api/courses/9999` after fix), 502 JSON with a stopped backend.
+      (`GET /api/courses/9999` after fix).
 - [ ] Persistence: `docker compose restart`, data still there (named volumes).
 - [ ] Wire captured images into `docs/screenshots/` + README Evidence section.
 
@@ -87,9 +89,9 @@ Cross-checked against `tips-from-bingji.md` and the open items in `docs/plan.md`
 
 - [ ] `go test ./...` + `go vet ./...` in all 8 modules (go.work).
 - [ ] `docker compose config` passes.
-- [ ] `nginx/routing-test.sh` passes (update stubs if error_page changes routing assertions).
+- [ ] `nginx/routing-test.sh` passes.
 - [ ] `docker compose up --build` + full manual pass: login, enrol, upload, grade,
-      notification, fixed 404, new 502 JSON path.
+      notification, fixed 404.
 
 ## Explicitly NOT doing (documented as limitations instead)
 

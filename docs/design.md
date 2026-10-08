@@ -185,6 +185,50 @@ Notification Service (async, correlates on `event_id` instead of `request_id`):
 {"msg":"received event","service":"notification-service","event_id":"...","event_type":"course.enrolled"}
 ```
 
+# Failure & resilience
+
+The system is not built to production fault-tolerance, but the failure modes
+below are deliberate and understood. The corresponding limitations are also
+listed in the README.
+
+## Asynchronous delivery
+
+Events are published to a **durable** `university.events` topic exchange with
+persistent delivery, and every consumer queue is durable. A consumer that is
+down does not lose messages: they wait on its queue and are drained when it
+restarts.
+
+A publisher failure is logged, not rolled back. Enrolling a student commits the
+enrolment first and publishes `course.enrolled` afterwards; if the broker is
+unreachable the enrolment still succeeds and the publish is logged as an error.
+There is **no transactional outbox**, so a crash in the window between the commit
+and the publish can drop an event. That is the accepted trade-off: an outbox would
+add a second table and a relay process for a prototype whose broker runs in the
+same Compose project.
+
+`account.created` is the one ordering-sensitive event. A topic exchange drops a
+message that has no matching binding, so profile-service and notification-service
+must already be up and bound when auth-service publishes the seed accounts at
+startup; `docs/api-examples.md` records the staged boot this requires. Events
+published after that — enrolment, grading — do not have the problem, because by
+then the bindings exist.
+
+## Synchronous calls
+
+The frontend bounds every outgoing gRPC call with a **10-second deadline**
+(`grpcCallTimeout`, used by `authCtx` in
+`frontend/internal/handler/handler.go`). A downstream service that hangs therefore
+fails the page render instead of holding it open: `DeadlineExceeded` and
+`Unavailable` are mapped to a **503** the user can act on (`grpcToHTTPStatus` in
+`render.go`).
+
+## Duplicate delivery
+
+RabbitMQ delivery is **at-least-once**. The notification consumer does not
+de-duplicate, so a redelivered event produces a duplicate notification. The feed
+is append-only and a duplicate is visible rather than corrupting state, which is
+why it is left as a documented limitation instead of carrying an idempotency key.
+
 # Service endpoints
 
 ## gRPC (internal, and used by the frontend for page rendering)
@@ -283,5 +327,100 @@ Every backend REST listener is set to `8080` explicitly in `docker-compose.yml`,
 | Templ + `chi` | Server-rendered frontend |
 | Nginx | API Gateway and sole ingress |
 | Docker Compose | Deployment and service isolation |
+
+# Design rationale
+
+This section answers the "thinking microservices" questions directly: why these
+boundaries, who owns what data, where the coupling is, and what was traded away.
+
+## Why these six boundaries
+
+Each service owns one business capability and can be described in a sentence:
+
+| Service | Capability |
+| --- | --- |
+| auth-service | Who can act, and as whom — credentials, JWT issuance, session boundary |
+| profile-service | The user's master data (name, contact, programme) |
+| course-catalogue-service | The course catalogue and which students are enrolled |
+| course-content-service | The teaching material (modules) inside a course |
+| assignment-service | Assignments, submissions, uploaded files, and grades |
+| notification-service | Turning domain events into a user's in-app notification feed |
+
+They are cut along capability, not by technical layer, and each has enough
+behaviour to stand alone: the catalogue runs enrolments, the assignment service
+runs uploads and grading, the notification service runs a RabbitMQ consumer.
+Splitting further would produce services that are mostly empty; merging them would
+put unrelated data and write paths in one process.
+
+The frontend is deliberately a **thin BFF**: it renders HTML and reads from the
+services over gRPC, but owns no domain data and no `/api/*` routes of its own.
+
+## Data ownership
+
+Every service owns its data exclusively and there is no shared database:
+
+| Data | Owner | Store |
+| --- | --- | --- |
+| Accounts / credentials | auth-service | SQLite |
+| Profiles | profile-service | SQLite |
+| Courses, enrolments | course-catalogue-service | SQLite |
+| Modules (course content) | course-content-service | CloverDB |
+| Assignments, submissions, grades | assignment-service | SQLite |
+| Submission files | assignment-service | Local filesystem |
+| Notifications | notification-service | SQLite |
+
+No service reads another's tables. Where one service needs another's data it asks
+over the owning service's API, or keeps a projection built from an event —
+profile-service's rows are materialised from `account.created`. The catalogue
+stores only the student id on an enrolment; the student's name is not duplicated,
+it is fetched from profile-service when a page needs it.
+
+## Where the dependencies sit
+
+- **The frontend depends synchronously on all six services.** A page load fans out
+  over gRPC to whatever it needs to render (see the path table above).
+- **The services do not call each other synchronously.** There is no
+  service-to-service gRPC chain, so a slow or down service cannot cascade
+  synchronously through the platform. The only coupling between services is
+  asynchronous, through `university.events`: auth-service publishes
+  `account.created`, the catalogue publishes `course.enrolled`, and the assignment
+  service publishes `grade.published`, all consumed by notification-service (and
+  `account.created` also by profile-service).
+
+That shape means a service can be rebuilt, restarted or rescaled without the
+others being changed or even running — with the caveat that event consumers have
+to be bound before the event is published.
+
+## Trade-offs taken
+
+- **gRPC + a per-service REST listener** costs a second listener in every service,
+  but keeps one auth/logging interceptor path for both internal and browser
+  traffic, and provides a real REST surface for the assessment without
+  hand-writing handlers.
+- **Eventual consistency for notifications.** Enrolment returns before the
+  notification exists; the UI treats a missing notification as "not yet".
+- **No outbox**, so an event can be lost if the broker is down at publish time.
+- **No TLS, no rate limiting, no health checks, stock `guest:guest`** — acceptable
+  on one private Compose network, none of them production-ready. They are
+  recorded as known limitations rather than built.
+- **Stateless JWT sessions** mean no session store to scale, but also no
+  server-side revocation: logout clears the cookie and a token stays valid until
+  it expires.
+
+## What I would change at scale
+
+- **Scale the services horizontally.** They are stateless apart from their
+  embedded databases; the frontend and the gRPC/REST listeners accept multiple
+  instances. Nginx would need upstream groups instead of single variables, and
+  RabbitMQ competing consumers would share each durable queue. (This is Phase 5
+  in the plan, deliberately out of scope for the submission.)
+- **Move from embedded SQLite to a networked database** per service, with
+  connection pooling, since a multi-instance service cannot share a local file.
+- **Add a transactional outbox** (or broker-confirm publishing) so an event is
+  never lost between commit and publish.
+- **Add TLS/mTLS between services**, secret injection for the broker, health
+  checks, and gateway rate limiting.
+- **Make the notification consumer idempotent** on `event_id` so at-least-once
+  delivery cannot duplicate a notification.
 
 For the implementation plan and the list of known issues, see [plan.md](plan.md) and [notes.md](notes.md).
