@@ -1,7 +1,6 @@
-# to compile: 
-# 	d2 --timeout 300 arch-diagram.d2 -t 0 --layout=elk --elk-algorithm=layered arch-diagram.png
 direction: right
 
+horizontal-gap: 2
 
 U: Browser
 B: "API Gateway\nNginx"
@@ -27,11 +26,10 @@ MQ: Message Queue (async events) {
   }
 }
 
-# Routing fra API Gateway
+
 B -> BE: /api/*
 B -> FE: everything else
 
-# Frontend til Backend (rettet til gRPC-Web for browser-kompatibilitet)
 FE -> BE: gRPC-Web {
   style.stroke-dash: 3
 }

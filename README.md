@@ -1,91 +1,105 @@
 # Osborne.AI - Microservices Project
 
-This project is made for the INFS605 (Microservices) course project. The goal is to create a Student Services Dashboard for university operations using a microservices architecture.
+Osborne.AI is a Student Services Dashboard for a university. It uses a
+microservices architecture and is the INFS605 (Microservices) course project.
 
-Github: https://github.com/bundgaard1/osbourne.ai
+GitHub: https://github.com/bundgaard1/osbourne.ai
 
 ## Setup steps
 
 Prerequisites:
 
 - Go 1.26+
-- Docker + Docker Compose
-- `buf`, `templ`, `protoc-gen-go`, `protoc-gen-go-grpc` (installed automatically by `make tools`)
+- Docker and Docker Compose
+- `buf`, `templ`, `protoc-gen-go`, `protoc-gen-go-grpc` (`make tools` installs them)
 
-Run the following commands to set up the project:
+Run these commands:
 
 ```bash
 make generate   # Generates protobufs/gRPC stubs and the frontend templ code
 cp .env.example .env   # Optional: override configuration (defaults match the code)
-docker compose up --build   # Builds and starts all services in Docker containers
+docker compose up --build   # Builds and starts all services in containers
 ```
 
-- Open the dashboard at **http://localhost:80** — the API Gateway (Nginx) is the only host-exposed application port.
-- RabbitMQ management console: **http://localhost:15672** (`guest` / `guest`)
+- Dashboard: **http://localhost:80**. The API Gateway (Nginx) is the only
+  host-exposed application port.
+- RabbitMQ management console: **http://localhost:15672** (`guest` / `guest`).
 
-The services are not published on host ports. In particular the frontend is deliberately unexposed: it serves HTML only, and a directly reachable copy would have pages whose `/api/*` calls have nowhere to go.
+No service publishes a host port. The frontend is not exposed on purpose. It
+serves HTML only, and a reachable copy would serve pages that cannot call
+`/api/*`.
 
 ### Demo accounts
 
-The services seed two accounts the first time they start. The same details are printed on the login page for convenience.
+The services seed two accounts on first start. The login page shows the same
+details.
 
 | Role    | Email                    | Password    | Name           |
 | ------- | ------------------------ | ----------- | -------------- |
 | Student | `student@osbourne.local` | `student123` | Andy Osborne   |
 | Teacher | `teacher@osbourne.local` | `teacher123` | Dr. Jane Teacher |
 
-Account creation is not exposed anywhere, so these seeds are the only accounts that exist.
+Account creation is not available. These seeds are the only accounts.
 
 ## Evidence
 
-The behaviour described above was captured from a running stack rather than
-asserted:
-
-- **[docs/api-examples.md](docs/api-examples.md)** — real `curl` request/response
-  pairs for the session boundary, an enrolment and its asynchronous
-  notification, plus the shared error shape for 401 and 404.
-- **[docs/screenshots/](docs/screenshots/)** — the Docker stack, the UI end to
-  end, RabbitMQ queue counters, a single `request_id` traced across the services,
-  the error responses, and data surviving `docker compose restart`. The capture
-  plan and the filenames live in that folder's `README.md`.
+- **[docs/api-examples.md](docs/api-examples.md)** - real `curl` request and
+  response pairs: the login, an enrolment, the notification that follows, and
+  the 401/404 error shape.
+- **[docs/screenshots/](docs/screenshots/)** - the Docker stack, the UI, the
+  RabbitMQ queue counters, one `request_id` in the logs, the error responses,
+  and data after `docker compose restart`. The capture plan is in that folder's
+  `README.md`.
 
 ## Tech stack
 
-- All services are written in **Go**.
-- Frontend is a server-rendered web UI built with **Go + Templ** and the `chi` router. It serves HTML and nothing else.
-- API Gateway is built on **Nginx**; it routes `/api/*` to the owning service and everything else to the frontend, and it injects `X-Request-ID`.
-- Every backend service exposes a **dual listener**: a gRPC server for internal service-to-service calls, and a **grpc-gateway** REST listener in front of that same gRPC server for browser traffic.
-- **Synchronous** inter-service calls use **gRPC**.
-- **Asynchronous** event processing uses **RabbitMQ** (durable `university.events` topic exchange).
-- **Per-service databases**: each service owns an embedded **SQLite** database (GORM), with the exception of the Course Content Service which uses the **CloverDB** document store. There is no shared database.
+- **Go** for all services.
+- **Go + Templ + `chi`** for the server-rendered frontend. It serves HTML only.
+- **Nginx** for the API Gateway. It routes `/api/*` to the owning service and
+  the rest to the frontend, and adds `X-Request-ID`.
+- A **dual listener** in every backend: gRPC for internal calls, and a
+  **grpc-gateway** REST listener in front of the same server for browser calls.
+- **gRPC** for synchronous inter-service calls.
+- **RabbitMQ** for asynchronous events, on the durable `university.events`
+  topic exchange.
+- **Per-service databases**: embedded **SQLite** (GORM) for most, **CloverDB**
+  (document store) for course-content. No shared database.
 
 ## Architecture
 
-![Architecture diagram](docs/arch-diagram.png)
+![Architecture diagram](docs/diagrams/arch-diagram.png)
 
-The platform is split into small, independently deployable services:
+- **Authentication Service** (`auth-service`): credentials, JWT issue and
+  validation, and the `account.created` event. Owns the session boundary.
+- **Student Profile Service** (`profile-service`): student and staff profile
+  data, built from `account.created`.
+- **Course Catalogue Service** (`course-catalogue-service`): courses, catalogue,
+  and enrolment. Publishes `course.enrolled`.
+- **Course Content Service** (`course-content-service`): course content and
+  modules (CloverDB).
+- **Assignment / Grading Service** (`assignment-service`): assignments,
+  submissions (upload and download), and grading. Publishes `grade.published`.
+- **Notification Service** (`notification-service`): the notification inbox.
+  Consumes `account.created`, `course.enrolled`, and `grade.published`.
+- **Frontend UI** (`frontend`): the server-rendered dashboard. Reads from all
+  services over gRPC.
 
-- **Authentication Service** (`auth-service`): creds, JWT issuance/validation and the `account.created` event. It owns the session boundary.
-- **Student Profile Service** (`profile-service`): student/staff profile master data, materialised from `account.created`.
-- **Course Catalogue Service** (`course-catalogue-service`): courses, catalog, and course enrolment; publishes `course.enrolled`.
-- **Course Content Service** (`course-content-service`): course content/modules (CloverDB document store).
-- **Assignment / Grading Service** (`assignment-service`): assignments, submissions (file upload/download), and grading; publishes `grade.published`.
-- **Notification Service** (`notification-service`): inbox notifications consumed from `account.created`, `course.enrolled` and `grade.published`.
-- **Frontend UI** (`frontend`): server-rendered dashboard that reads from all services over gRPC.
-
-There are two non-overlapping synchronous paths. The frontend uses **gRPC** to fetch what it needs to render a page. The browser's `/api/*` calls go through the gateway to the owning service's REST listener, which translates them back into gRPC so the same auth and logging interceptors apply. The browser never receives a JWT: auth-service delivers it as an `HttpOnly` cookie and strips it from the JSON body, and the user's role is derived server-side rather than chosen at login.
-
-Shared code (logging, JWT parsing, gRPC interceptors, the gateway listener, request-ID correlation) lives in the `common` module.
+The frontend uses gRPC for page data. Browser `/api/*` calls go through the
+gateway to the owning service's REST listener, which turns them back into gRPC
+so the same auth and logging interceptors apply. The browser never receives a
+JWT: auth-service sends it in an `HttpOnly` cookie, removes it from the JSON
+body, and derives the role on the server. The login form has no role input.
+Shared code (logging, JWT parsing, gRPC interceptors, the gateway listener,
+request-ID correlation) is in the `common` module.
 
 ## API endpoints
 
-Every browser-facing call reaches the gateway at `http://localhost` and is served
-by the owning service's REST listener; the frontend serves HTML only. The surface
-is **25 endpoints** — 23 generated from the protobuf `google.api.http`
-annotations, plus two hand-written streaming routes. Authenticated routes need
-the session cookie (or an explicit `Authorization: Bearer` header), and every
-failure uses the one JSON shape documented in
-[docs/api-examples.md](docs/api-examples.md).
+Every browser call goes to the gateway at `http://localhost` and is served by
+the owning service's REST listener. The frontend serves HTML only. The surface
+has **25 endpoints**: 23 from the protobuf `google.api.http` annotations, plus
+two hand-written streaming routes. Authenticated routes need the session cookie
+or an explicit `Authorization: Bearer` header. Every failure uses the JSON shape
+in [docs/api-examples.md](docs/api-examples.md).
 
 ### auth-service
 
@@ -135,9 +149,9 @@ failure uses the one JSON shape documented in
 | `POST` | `/api/assignments/{assignment_id}/submissions` | Upload a submission (multipart, streaming) |
 | `GET` | `/api/submissions/{submission_id}/file` | Download a submission (binary, streaming) |
 
-The last two are hand-written (`mux.HandlePath`) rather than generated, so a file
-is streamed instead of base64-encoded inside JSON. The application caps uploads
-at 10 MB; nginx allows 12 MB to leave room for the multipart envelope.
+The last two are hand-written (`mux.HandlePath`), not generated. They stream a
+file instead of base64-encoding it in JSON. The application caps uploads at
+10 MB. Nginx allows 12 MB for the multipart envelope.
 
 ### notification-service
 
@@ -148,8 +162,8 @@ at 10 MB; nginx allows 12 MB to leave room for the multipart envelope.
 
 ## Testing process
 
-**Go tests and vet, per module.** The repo is a `go.work` workspace, so `./...`
-has to be evaluated inside each module:
+**Go tests and vet, per module.** The repo is a `go.work` workspace. Run `./...`
+inside each module:
 
 ```bash
 for m in common frontend auth-service profile-service notification-service \
@@ -158,39 +172,38 @@ for m in common frontend auth-service profile-service notification-service \
 done
 ```
 
-**Gateway routing.** The `/api/*` routes are regex-ordered, and `nginx -t` cannot
-see a misordering — every route parses, the wrong one just wins. `routing-test.sh`
-runs the whole route table against stub upstreams and asserts which service
-receives each path, the JSON 404 catch-all, query-string preservation,
-cookie → bearer promotion, and the 12 MB body limit:
+**Gateway routing.** The `/api/*` routes are regex-ordered. `nginx -t` cannot
+see a wrong order: every route parses and the wrong route wins. `routing-test.sh`
+runs the route table against stub upstreams and checks which service gets each
+path, the JSON 404 catch-all, query-string preservation, cookie to bearer
+promotion, and the 12 MB body limit:
 
 ```bash
 ./nginx/routing-test.sh   # requires docker
 ```
 
-**Manual end-to-end.** `docker compose up --build`, then exercise the UI and the
+**Manual end-to-end.** Run `docker compose up --build`, then use the UI and the
 documented `curl` calls. The captured results are the evidence in
 [docs/api-examples.md](docs/api-examples.md) and
 [docs/screenshots/](docs/screenshots/).
 
 ## Known limitations
 
-- **gRPC is unencrypted.** All internal service-to-service traffic uses
-  `insecure` credentials — no TLS or mTLS. Acceptable on the single private
-  Compose network, not production-ready.
-- **RabbitMQ uses the stock `guest:guest` credentials** and the management
-  dashboard is reachable on `localhost:15672`. Docker Compose does not
-  interpolate `.env` into the services' `environment:` blocks, so these cannot be
-  overridden from `.env` as shipped (noted in `.env.example`).
+- **gRPC is unencrypted.** Internal traffic uses `insecure` credentials, with no
+  TLS or mTLS. Acceptable on the private Compose network, not production-ready.
+- **RabbitMQ uses the stock `guest:guest` credentials**, and the management
+  dashboard is at `localhost:15672`. Docker Compose does not interpolate `.env`
+  into the service `environment:` blocks, so these are not configurable from
+  `.env` (noted in `.env.example`).
 - **No rate limiting** on the gateway or any service.
-- **No health checks** on the Go services — none expose `/healthz` and none have
-  a Docker `HEALTHCHECK`; only RabbitMQ does.
+- **No health checks** on the Go services. No service exposes `/healthz` and
+  none has a Docker `HEALTHCHECK`; only RabbitMQ has one.
 - **The notification consumer is not idempotent.** RabbitMQ delivery is
-  at-least-once, so a redelivered event can produce a duplicate notification.
+  at-least-once, so a redelivered event can create a duplicate notification.
 
 ## Docs
 
-- [API examples](docs/api-examples.md) — real `curl` request/response pairs captured from a running stack, including the failure cases.
-- [Design document](docs/design.md) — architecture, isolation, service endpoints, event catalog, and request correlation.
-- [Plan / issues](docs/plan.md) — the implementation plan and known issues/Deltas.
-- [Notes](docs/notes.md) — additional project notes.
+- [API examples](docs/api-examples.md) - real `curl` request and response pairs from a running stack, including the failures.
+- [Design document](docs/design.md) - architecture, isolation, service endpoints, event catalog, and request correlation.
+- [Plan / issues](docs/plan.md) - the implementation plan and known issues.
+- [Notes](docs/notes.md) - project notes.

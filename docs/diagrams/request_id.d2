@@ -1,0 +1,19 @@
+shape: sequence_diagram
+
+# Define actors to preserve left-to-right order and custom display labels
+B: Browser
+NG: "Nginx (80)"
+F: "Frontend (8080)"
+S: "Backend services (gRPC)"
+log: log
+
+# Request flow
+B -> NG: page request
+NG -> F: "X-Request-ID: \$request_id + session cookie"
+F -> S: "x-request-id metadata + Bearer JWT"
+S -> S: interceptor stores request_id + claims in ctx
+S -> log: "slog.*Context(ctx, ...) emits request_id + user_id"
+
+B -> NG: "/api/* request (carries the same session)"
+NG -> S: "X-Request-ID + cookie promoted to Authorization"
+S -> log: "same request_id, same user_id"

@@ -1,13 +1,13 @@
 # API Examples
 
-Real request/response pairs captured from a running stack with `curl`. Every
-status line, header and body below was copied out of a `curl -i` transcript —
-the `Date` and `Connection` headers excepted, which are elided for readability.
+Real request and response pairs from a running stack. Every status line, header,
+and body comes from a `curl -i` transcript. The `Date` and `Connection` headers
+are removed.
 
-## How this was captured
+## How to capture
 
 ```bash
-# Consumers first, then everything else - see the note below.
+# Start the consumers first, then everything else. See the note below.
 docker compose up -d rabbitmq profile-service notification-service
 #   ...wait for both consumers to log that they are listening...
 docker compose up -d
@@ -15,49 +15,42 @@ docker compose up -d
 curl -i -sS -c cookies.txt -X POST http://localhost/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"student@osbourne.local","password":"student123"}'
-curl -i -sS -b cookies.txt ...             # every later call reuses that cookie
+curl -i -sS -b cookies.txt ...             # later calls reuse that cookie
 ```
 
-The staged start is not ceremony. `auth-service` publishes `account.created` for
-the two seed accounts the moment it boots, onto a topic exchange. Brought up all
-at once, a consumer whose queue is not yet bound never sees those events, and
-the profile rows and the welcome notification in example 3 do not exist at all.
-So the run starts the two consumers, waits for them to report that they are
-listening, and only then starts the publishers.
+The staged start is necessary. auth-service publishes `account.created` for the
+two seed accounts when it boots, onto a topic exchange. A consumer whose queue is
+not yet bound never sees those events, so the profile rows and the welcome
+notification in example 3 do not exist. The run therefore starts the two
+consumers, waits for them to report that they are listening, then starts the
+publishers.
 
-- Base URL: `http://localhost` — the nginx API gateway, the only host-exposed
-  application port. Nothing is published per-service, so these paths exist *only*
-  because the gateway routes them.
-- Stack: commit `90cf51b`, run on 2026-09-29 local time (NZDT) from a clean
+- Base URL: `http://localhost`, the nginx API gateway and the only
+  host-exposed application port. No per-service port is published, so these
+  paths exist only because the gateway routes them.
+- Stack: commit `90cf51b`, run on 2026-09-29 local time from a clean
   `docker compose down -v`, so the databases were freshly seeded. The `Date`
-  headers and the timestamps inside the bodies are UTC, which is why they read
-  as the 28th.
+  headers and the body timestamps are UTC.
 - Account: the seeded student `student@osbourne.local` / `student123`
   (`user_id` `12345`).
 
-Two things are true of every response below and are worth knowing before reading
-them.
+Two facts apply to every response. **No JWT appears in a response body**: login
+sends the token as an `HttpOnly` cookie and blanks it from the JSON, so
+`Set-Cookie` is the only place the raw token appears (abbreviated `<jwt>` here).
+**Every response has an `X-Request-Id`, and it is the same id in the service
+logs**: the gateway makes it, promotes it into gRPC metadata, and echoes it
+back. Quote it when you report a failure.
 
-**The JWT is never in a response body.** Login hands out the token as an
-`HttpOnly` cookie and blanks it from the JSON. In the transcript the
-`Set-Cookie` value is the only place the raw token appears; it is abbreviated
-here as `<jwt>`. It is a real token, signed with the stack's dev secret, and it
-expired two hours after the capture.
-
-**Every response carries an `X-Request-Id`, and it is the same id in the
-service logs.** The gateway generates it, promotes it into gRPC metadata, and
-echoes it back. Quote it when reporting a failure.
-
-Field naming follows the protobuf names, not camelCase — except `isRead`, whose
-proto field is genuinely spelled that way. 64-bit integers (`size`) are JSON
-strings, which is what `protojson` does with `int64`.
+Field names use the protobuf names, not camelCase, except `isRead`, whose proto
+field is spelled that way. The `int64` field `size` is a JSON string, which is
+what `protojson` does with `int64`.
 
 ---
 
-## 1. `POST /api/auth/login` — auth-service
+## 1. `POST /api/auth/login` - auth-service
 
-The session boundary. The response body identifies the user; the cookie is what
-authenticates everything after it.
+The session boundary. The response body identifies the user; the cookie
+authenticates every later call.
 
 **Request**
 
@@ -80,39 +73,32 @@ X-Request-Id: 62641180d692f77475cc498c9f62e95f
 {"user_id":"12345", "email":"student@osbourne.local", "role":"student"}
 ```
 
-Three things to read off this one response:
+- **`Set-Cookie` is the only copy of the token.** `HttpOnly` keeps it away from
+  JavaScript, so an XSS cannot read the session. `SameSite=Lax` and
+  `Max-Age=7200` match the token lifetime of 120 minutes. The service makes the
+  cookie inside the RPC; the gateway emits it.
+- **The body has no `token` field.** The service blanks the token before
+  serialisation, and proto3 drops the empty string.
+- **The service derives `role` on the server** from the stored account. The
+  login request cannot ask to be a teacher.
 
-- **`Set-Cookie` is the only copy of the token.** `HttpOnly` keeps it out of
-  reach of JavaScript, so an XSS bug cannot read the session; `SameSite=Lax` and
-  `Max-Age=7200` match the token's own 120-minute lifetime, so the cookie cannot
-  outlive a token the server would reject. The cookie is minted by the service
-  from inside the RPC and emitted by the gateway, which is why it appears
-  alongside the body rather than being set by a handler.
-- **No `token` field in the body.** It is deliberately blanked before
-  serialisation, and proto3 drops the empty string, so the field is absent
-  entirely rather than present-and-empty.
-- **`role` is derived server-side** from the stored account, not chosen by the
-  caller — the login request cannot ask to be a teacher.
+The gateway then promotes this cookie to `Authorization: Bearer <jwt>` on every
+later request and drops the raw `Cookie` header, so the services never see the
+session cookie. A caller can also send `Authorization` directly; the client
+header wins, so `curl` and Postman work without a cookie jar.
 
-The gateway then promotes this cookie into `Authorization: Bearer <jwt>` on
-every later request and drops the raw `Cookie` header, so the services never see
-the session cookie itself. A caller may also send `Authorization` directly
-instead of using the cookie; the client's header wins, which is why `curl` and
-Postman work without a cookie jar at all.
-
-**Related, same service:** `POST /api/auth/validate` introspects a token the
-client holds, and `POST /api/auth/logout` expires the cookie. Logout reads no
-token and consults no session store — a user whose token has already expired must
-still be able to drop the cookie — and it answers `200` with
-`Set-Cookie: osbourne_session=; Max-Age=0`.
+**Related routes:** `POST /api/auth/validate` introspects a token the client
+holds; `POST /api/auth/logout` expires the cookie and answers `200` with
+`Set-Cookie: osbourne_session=; Max-Age=0`. Logout reads no token and uses no
+session store, so a user with an expired token can still drop the cookie.
 
 ---
 
-## 2. `POST /api/enrollments` — course-catalogue-service
+## 2. `POST /api/enrollments` - course-catalogue-service
 
 A synchronous write that also publishes an event. The enrolment is persisted
-first, and only then is `course.enrolled` published, so a broker failure cannot
-roll back a successful enrolment.
+first, then `course.enrolled` is published, so a broker failure cannot roll back
+a successful enrolment.
 
 **Request**
 
@@ -134,22 +120,19 @@ X-Request-Id: bae3082f8481d2d7a6db6f66a3fe2181
 {"success":true}
 ```
 
-**Who got enrolled is not in the request.** There is no `user_id` in the body
-and none is needed: the subject comes from the verified JWT, and a `user_id` in
-the payload would be ignored. Sending one anyway would enrol nobody else — but
-the field is absent here because a route that took an id would invite the
-mistake.
+The request does not say who is enrolled. There is no `user_id` in the body, and
+none is needed: the subject comes from the verified JWT, and the service ignores
+a `user_id` in the payload.
 
-**What the gateway did to get here.** `POST /api/enrollments` is proxied to
+The gateway sends `POST /api/enrollments` to
 `course-catalogue-service:8080`, whose grpc-gateway turns it back into a
 `coursecatalogue.CourseCatalogueService/EnrollUser` gRPC call, so the same auth
-and logging interceptors apply as on the internal path. Note that
-`/api/courses/1/assignments` also starts with `/api/courses/` and belongs to a
-different service entirely — the gateway disambiguates by regex, and the
-ordering of those rules is the only reason the routing works.
+and logging interceptors apply as on the internal path. `/api/courses/1/assignments`
+also starts with `/api/courses/` but belongs to a different service; the gateway
+disambiguates by regex, and the order of those rules is the only reason the
+routing works.
 
-**The event it caused**, from `docker compose logs course-catalogue-service`,
-sharing the `request_id` from the response header above:
+**The event it caused**, from `docker compose logs course-catalogue-service`:
 
 ```
 {"msg":"published course.enrolled event","student_id":"12345","course_id":"1",
@@ -157,18 +140,17 @@ sharing the `request_id` from the response header above:
  "request_id":"bae3082f8481d2d7a6db6f66a3fe2181","user_id":"12345"}
 ```
 
-`request_id` is the `X-Request-Id` from the HTTP response. That is the whole
-correlation story in one line: the browser request, the nginx access line, the
-gRPC handler log and the event publish all carry the same id, so this event can
-be traced back to the click that caused it.
+`request_id` is the `X-Request-Id` from the response header above. The browser
+request, the nginx access line, the gRPC handler log, and the event publish all
+carry the same id, so this event traces back to the click that caused it.
 
 ---
 
-## 3. `GET /api/notifications` — notification-service
+## 3. `GET /api/notifications` - notification-service
 
-The asynchronous consequence of example 2. Nothing in this request caused the
-notifications; they are the result of events consumed from RabbitMQ by a service
-that never talked to the caller.
+The asynchronous result of example 2. Nothing in this request caused the
+notifications; a service that never talked to the caller consumed events from
+RabbitMQ.
 
 **Request**
 
@@ -200,8 +182,7 @@ X-Request-Id: b1aefe61a93df8e0bde3dec06de765ec
    "timestamp":"2026-09-28T23:49:41.540918952Z"}]}
 ```
 
-Three notifications, each produced by a different service — none of which the
-caller talked to in order to cause it:
+Three notifications, each from a different service the caller never talked to:
 
 | Notification | Published by | Consumed as |
 | --- | --- | --- |
@@ -217,16 +198,14 @@ caller talked to in order to cause it:
 {"msg":"received event","event_id":"8c5dcb7d-7baf-41ca-893d-c8ddcc4e762e","event_type":"grade.published"}
 ```
 
-**This is eventually consistent, not transactional.** The enrolment in example 2
-returned `200` before this notification existed. Polling immediately after
-publishing can legitimately return an empty list; the run that produced this
-transcript retried once a second until the grade notification appeared, and it
-took under a second. A UI should treat a missing notification as "not yet", not
-as an error.
+This is eventually consistent, not transactional. The enrolment in example 2
+returned `200` before this notification existed, so a poll immediately after
+publish can return an empty list. A UI should treat a missing notification as
+"not yet", not as an error.
 
 **Marking one read** is the other route on this service. The id comes from the
-URL, so it is attacker-controlled, and the service checks the notification
-belongs to the caller rather than trusting the path:
+URL, so it is attacker-controlled; the service checks the notification belongs
+to the caller.
 
 ```bash
 curl -i -sS -b cookies.txt -X POST \
@@ -239,19 +218,19 @@ HTTP/1.1 200 OK
 {"success":true}
 ```
 
-The next `GET /api/notifications` shows `"isRead":true` on that entry and nothing
-else changed. `isRead` is camelCase in the response because it is camelCase in
-the proto; every other field here uses the proto snake_case spelling.
+The next `GET /api/notifications` shows `"isRead":true` on that entry and
+nothing else changed. `isRead` is camelCase because it is camelCase in the
+proto; every other field uses the proto snake_case spelling.
 
 ---
 
 ## Failure cases
 
 Both shapes below come from one error handler in `common/gateway.go`, so every
-REST failure in the system has the same body: the HTTP status repeated as `code`,
-`success: false`, and a message.
+REST failure has the same body: the HTTP status as `code`, `success: false`, and
+a message.
 
-**401 — the auth interceptor rejecting a request with no token.** Run without a
+**401: the auth interceptor rejects a request with no token.** Run without a
 cookie and without an `Authorization` header:
 
 ```bash
@@ -266,16 +245,14 @@ X-Request-Id: 2ab6f7226b7e6c8bfb7f0f6ae4eae592
 {"code":401,"success":false,"message":"missing or invalid bearer token"}
 ```
 
-The same 401 comes back from the two streaming file routes
-(`POST /api/assignments/{id}/submissions` and
-`GET /api/submissions/{id}/file`). Those are not served by generated code, so
-they are not covered by the unary auth interceptor; they are protected by a
-separate stream interceptor, and the identical response from
-`GET /api/submissions/198c2c6f-d2dd-4c4b-a7ef-722614937437/file` is the
-evidence that it is actually running on them.
+The two streaming file routes (`POST /api/assignments/{id}/submissions` and
+`GET /api/submissions/{id}/file`) return the same 401. They are not served by
+generated code, so the unary auth interceptor does not cover them; a separate
+stream interceptor protects them, and this identical response is the evidence
+that it runs on them.
 
-**404 — an unrouted path answered by the gateway itself.** This one never
-reaches a service:
+**404: an unrouted path, answered by the gateway.** This one never reaches a
+service:
 
 ```bash
 curl -i -sS http://localhost/api/does-not-exist
@@ -289,15 +266,12 @@ X-Request-Id: 1a7eb3a61af5514945d868894129b48b
 {"code":404,"success":false,"message":"unknown API route"}
 ```
 
-Without that catch-all, a mistyped `/api/` URL would fall through to the
-frontend and be answered with a page of HTML — a syntax error for any client
-parsing JSON, rather than a status it can act on.
+Without the catch-all, a mistyped `/api/` URL would fall through to the frontend
+and return HTML, which is a syntax error for any client parsing JSON.
 
-A 404 from a service looks the same but names the resource, e.g.
+A service 404 looks the same but names the resource, e.g.
 `GET /api/courses/1/modules/does-not-exist`:
 
 ```
 {"code":404,"success":false,"message":"module does-not-exist was not found"}
 ```
-
-
