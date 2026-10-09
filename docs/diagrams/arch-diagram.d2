@@ -1,6 +1,12 @@
-direction: right
+vars: {
+  d2-config: {
+    theme-id: 300
+    layout-engine: elk
+    pad: 0
+  }
+}
 
-horizontal-gap: 2
+direction: right
 
 U: Browser
 B: "API Gateway\nNginx"
@@ -11,7 +17,7 @@ FE: Frontend (HTML only) {
   F: Frontend UI
 }
 
-BE: Backend Services (dual listener) {
+BE: Backend Services (dual listeners) {
   H: AUTH Service
   C: Profile Service
   G: Notification Service

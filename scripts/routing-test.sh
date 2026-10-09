@@ -13,7 +13,7 @@
 # received, which lets the same harness assert both the routing table and the
 # cookie -> Authorization promotion.
 #
-# Usage: ./nginx/routing-test.sh
+# Usage: ./scripts/routing-test.sh
 # Requires: docker. Leaves nothing behind.
 
 set -euo pipefail

@@ -1,4 +1,4 @@
-.PHONY: tools generate dev
+.PHONY: tools generate dev test routing-test
 
 # grpc-gateway is pinned: v2.31+ requires a google.golang.org/grpc newer than
 # the v1.83.0 this workspace runs on, which would force a workspace-wide bump.
@@ -25,6 +25,14 @@ generate: tools
 
 dev: generate
 	@cd frontend && go run cmd/main.go
+
+# Runs go test and go vet in every module of the go.work workspace.
+test:
+	@./scripts/test.sh
+
+# Verifies the /api/* routing table against stub upstreams. Requires docker.
+routing-test:
+	@./scripts/routing-test.sh
 
 clean:
 	@echo "Cleaning up generated files..."

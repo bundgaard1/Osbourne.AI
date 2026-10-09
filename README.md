@@ -94,93 +94,20 @@ Every browser call goes to the gateway at `http://localhost` and is served by
 the owning service's REST listener. The surface has **25 endpoints**: 23 from
 the protobuf `google.api.http` annotations, plus two hand-written streaming
 routes. Authenticated routes need the session cookie or an explicit
-`Authorization: Bearer` header. Every failure uses one JSON shape; see
-[docs/api-examples.md](docs/api-examples.md).
+`Authorization: Bearer` header. The full table (with the RPC each route maps to)
+lives in [docs/design.md](docs/design.md#service-endpoints); every failure uses
+one JSON shape, shown in [docs/api-examples.md](docs/api-examples.md).
 
-### auth-service
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/api/auth/login` | Validate credentials, set the `HttpOnly` session cookie |
-| `POST` | `/api/auth/validate` | Introspect a token |
-| `POST` | `/api/auth/logout` | Expire the session cookie |
-
-### profile-service
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/profile` | Current user's profile |
-| `PUT` | `/api/profile` | Replace the current user's profile |
-
-### course-catalogue-service
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/courses` | List courses (paginated: `page`, `page_size`) |
-| `GET` | `/api/courses/{course_id}` | One course |
-| `POST` | `/api/enrollments` | Enrol the current user in a course |
-| `GET` | `/api/enrollments/me` | Courses the current user is enrolled in |
-
-### course-content-service
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/courses/{course_id}/modules` | List a course's modules |
-| `POST` | `/api/courses/{course_id}/modules` | Create a module |
-| `GET` | `/api/courses/{course_id}/modules/{module_id}` | One module |
-| `PUT` | `/api/courses/{course_id}/modules/{module_id}` | Update a module |
-| `DELETE` | `/api/courses/{course_id}/modules/{module_id}` | Delete a module |
-
-### assignment-service
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/courses/{course_id}/assignments` | Assignments for a course |
-| `POST` | `/api/courses/{course_id}/assignments` | Create an assignment |
-| `GET` | `/api/assignments/{assignment_id}` | One assignment |
-| `GET` | `/api/assignments/{assignment_id}/submissions` | All submissions for an assignment |
-| `GET` | `/api/assignments/{assignment_id}/submissions/mine` | The caller's submissions |
-| `GET` | `/api/submissions/{submission_id}` | One submission |
-| `POST` | `/api/submissions/{submission_id}/grade` | Grade a submission |
-| `POST` | `/api/assignments/{assignment_id}/submissions` | Upload a submission (multipart, streaming) |
-| `GET` | `/api/submissions/{submission_id}/file` | Download a submission (binary, streaming) |
-
-The last two are hand-written. They stream the file instead of base64-encoding
-it in JSON. The application caps uploads at 10 MB; nginx allows 12 MB for the
-multipart envelope.
-
-### notification-service
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/notifications` | The caller's notifications |
-| `POST` | `/api/notifications/{notification_id}/read` | Mark one notification read |
-
-## Testing process
-
-**Go tests and vet, per module.** The repo is a `go.work` workspace. Run `./...`
-inside each module:
+## Testing
 
 ```bash
-for m in common frontend auth-service profile-service notification-service \
-         course-catalogue-service course-content-service assignment-service; do
-  (cd "$m" && go test ./... && go vet ./...)
-done
+make test          # go test + go vet in every go.work module
+make routing-test  # /api/* routing table against stub upstreams (requires docker)
 ```
 
-**Gateway routing.** The `/api/*` routes are regex-ordered. `nginx -t` cannot
-see a wrong order: every route parses and the wrong route wins. `routing-test.sh`
-runs the route table against stub upstreams and checks which service gets each
-path, the JSON 404 catch-all, query-string preservation, cookie to bearer
-promotion, and the 12 MB body limit:
-
-```bash
-./nginx/routing-test.sh   # requires docker
-```
-
-**Manual end-to-end.** Run `docker compose up --build`, then use the UI and the
-documented `curl` calls. The captured results are the evidence in
-[docs/api-examples.md](docs/api-examples.md) and
+For the manual end-to-end pass (stack up, UI, documented `curl` calls), see
+[docs/screenshots/README.md](docs/screenshots/README.md). The captured results
+are the evidence in [docs/api-examples.md](docs/api-examples.md) and
 [docs/screenshots/](docs/screenshots/).
 
 ## Known limitations

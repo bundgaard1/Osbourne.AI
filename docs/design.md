@@ -314,8 +314,6 @@ generated gateway routes, not the two hand-written streaming routes.
 
 ## Design rationale
 
-This section answers the "thinking microservices" questions.
-
 ### Service boundaries
 
 Each service owns one business capability and can be described in a sentence:
@@ -367,6 +365,3 @@ unchanged. But event consumers must be bound before the event is published.
   and RabbitMQ competing consumers. (Phase 5, out of scope.)
 - **Close the documented gaps:** TLS/mTLS, broker secret injection, health
   checks, gateway rate limiting, and an idempotent notification consumer.
-
-For the implementation plan and known issues, see [plan.md](plan.md) and
-[notes.md](notes.md).
