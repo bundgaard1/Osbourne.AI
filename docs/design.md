@@ -10,8 +10,7 @@ service.
 
 Every service runs a **dual listener**: a gRPC server for internal calls, and a
 grpc-gateway REST listener in front of the same server. The REST listener dials
-gRPC over loopback instead of calling the implementation in-process, so the same
-interceptors guard internal and browser traffic.
+gRPC over loopback instead of calling the implementation in-process.
 
 ![Architecture diagram](diagrams/arch-diagram.png)
 
@@ -45,10 +44,10 @@ Frontend gRPC calls carry `Authorization: Bearer <JWT>` and `x-request-id`.
 
 #### Browser: REST through the gateway
 
-Nginx routes each browser `/api/*` call to the owning service. The service's
+Nginx routes each browser `/api/*` call to the owning service, and the service's
 REST listener turns it back into a gRPC call to its own server. Thus
 `common.AuthInterceptor` and the request-logging interceptor apply to browser
-traffic and internal calls.
+traffic exactly as they do to internal calls.
 
 Nginx uses **regex** locations, because a prefix match cannot test the second
 path segment. The first match wins, so the specific `/api/courses/{id}/...`
@@ -61,32 +60,17 @@ routes come before the catalogue catch-all.
 | `/api/notifications/*` | notification-service |
 | `/api/courses/{id}/modules/*` | course-content-service |
 | `/api/courses/{id}/assignments/*` | assignment-service |
-| `/api/assignments/{id}/submissions$` | assignment-service (upload, buffering off) |
-| `/api/submissions/{id}/file$` | assignment-service (download, buffering off) |
+| `/api/assignments/{id}/submissions$` | assignment-service (upload) |
+| `/api/submissions/{id}/file$` | assignment-service (download) |
 | `/api/(assignments\|submissions)(/\|$)` | assignment-service |
 | `/api/(courses\|enrollments)(/\|$)` | course-catalogue-service |
 | `/api/` | 404 JSON, answered by nginx itself |
 | `/` | frontend |
 
-Four nginx settings are load-bearing:
-
-- **Upstreams in variables.** A literal hostname resolves at config-parse time,
-  so `nginx -t` fails unless every backend is up, and a recreated container's
-  new IP stays cached. A variable defers resolution to request time.
-- **`client_max_body_size 12m`.** The nginx default of 1 MB rejects a large
-  upload with a bare 413 and no JSON body. The application caps uploads at
-  10 MB, so the gateway limit is higher.
-- **Streaming routes disable proxy buffering.** `proxy_request_buffering off`
-  stops nginx from writing the whole upload to a temp file first, which would
-  defeat the streaming and double disk use. `proxy_http_version 1.1` is
-  necessary for a chunked body.
-- **The `/api/` catch-all returns JSON.** An unrouted API path must not fall
-  through to the frontend's HTML and leave a JSON client with a syntax error.
-
 ### Asynchronous: RabbitMQ events
 
 Services publish events on the durable **topic exchange `university.events`**.
-Publishers use persistent delivery. Consumer queues are durable, so messages
+Publishers use persistent delivery, and consumer queues are durable, so messages
 survive consumer downtime and drain on startup.
 
 | Event | Published by | Routing key | Consumed by |
@@ -108,13 +92,18 @@ listeners are reachable only from the gateway, on the shared network.
 ### Databases
 
 Database-per-service: each service owns its store, with no shared or
-cross-domain storage.
+cross-domain storage. State moves only through gRPC APIs, REST endpoints, and
+events.
 
-- SQLite (embedded, GORM): auth, profile, notification, course-catalogue, assignment.
-- CloverDB (embedded document store): course-content.
-- Local file storage: assignment submissions.
-
-State moves only through gRPC APIs, REST endpoints, and events.
+| Data | Owner | Store |
+| --- | --- | --- |
+| Accounts / credentials | auth-service | SQLite |
+| Profiles | profile-service | SQLite |
+| Courses, enrolments | course-catalogue-service | SQLite |
+| Modules (course content) | course-content-service | CloverDB |
+| Assignments, submissions, grades | assignment-service | SQLite |
+| Submission files | assignment-service | Local filesystem |
+| Notifications | notification-service | SQLite |
 
 ## Authentication and session flow
 
@@ -135,7 +124,7 @@ auth-service owns the session boundary. The browser never sees the token.
    `common.AuthInterceptor` reads. A client `Authorization` header wins, so
    `curl` and Postman work without a cookie.
 6. Each service verifies the JWT in its interceptor and puts the claims in the
-   request context. A bad token gets `Unauthenticated`.
+   request context.
 
 nginx removes the `Cookie` header before proxying, so the raw token never
 appears in a service access log. `common.IncomingHeaderMatcher` also refuses to
@@ -151,6 +140,19 @@ stream context. Without it, `SubmitAssignment` accepted any uploader ID and
 `POST /api/auth/logout` is an API call, not a form post. auth-service owns the
 cookie and is the only component that can clear it. A plain form post would show
 the browser a JSON body instead of the login page.
+
+## Error handling
+
+Every REST failure uses one JSON body, produced by the gateway error handler:
+
+```json
+{"code":404,"success":false,"message":"course not found"}
+```
+
+`code` is the HTTP status, and `success` keeps the frontend contract. The auth
+interceptor answers `401` for a missing or invalid token, and the frontend maps
+gRPC `DeadlineExceeded` and `Unavailable` to `503`. The transcript for each case
+is in [api-examples.md](api-examples.md).
 
 ## Observability and request correlation
 
@@ -168,7 +170,7 @@ request), and `user_id` (from the verified JWT claims).
    fresh one and give a page load and its API calls unrelated ids. The frontend
    forwards the id on every outgoing gRPC call as `x-request-id`.
 3. Each backend interceptor copies the header and the JWT claims into the
-   request context (`WithRequestID`, `WithClaims`).
+   request context.
 4. The shared `slog` handler reads both on every `slog.*Context` call, so each
    hop logs the same id with no extra attributes at the call sites.
 
@@ -177,25 +179,6 @@ sets the per-service level (`debug`, `info`, `warn`, `error`). GORM and
 go-rabbitmq output goes through `slog`, so the stream stays pure JSON;
 `GormLogger` emits only real errors and drops `RecordNotFound`.
 
-### Example trace: student course enrolment
-
-`POST /api/enrollments` as `student@osbourne.local` produces these logs, which
-carry the same `request_id`.
-
-Course Catalogue Service:
-
-```json
-{"msg":"received get_course request","service":"course-catalogue-service","course_id":"1","request_id":"a1b2c3...","user_id":"12345"}
-{"msg":"received enroll_user request","service":"course-catalogue-service","course_id":"1","request_id":"a1b2c3...","user_id":"12345"}
-{"msg":"published course.enrolled event","service":"course-catalogue-service","student_id":"12345","course_id":"1","event_id":"...","request_id":"a1b2c3...","user_id":"12345"}
-```
-
-Notification Service (asynchronous, correlates on `event_id`):
-
-```json
-{"msg":"received event","service":"notification-service","event_id":"...","event_type":"course.enrolled"}
-```
-
 ## Failure and resilience
 
 The system does not target production fault-tolerance. These failure modes are
@@ -203,33 +186,29 @@ deliberate and known; the README lists the same limitations.
 
 ### Asynchronous delivery
 
-Events go to a durable topic exchange with persistent delivery. Every consumer
-queue is durable, so a consumer that is down drains its queue on restart.
-
-A publisher failure is logged, not rolled back. An enrolment commits first, then
-publishes `course.enrolled`. If the broker is down, the enrolment still succeeds
-and the publish logs an error. There is no transactional outbox, so a crash
-between commit and publish can drop an event. This is an accepted trade-off.
+Events go to a durable topic exchange with persistent delivery, so a consumer
+that is down drains its queue on restart. A publisher failure is logged, not
+rolled back: an enrolment commits first, then publishes `course.enrolled`, so a
+broker that is down still leaves the enrolment successful. There is no
+transactional outbox, so a crash between commit and publish can drop an event.
+This is an accepted trade-off.
 
 `account.created` is the only order-sensitive event. A topic exchange drops a
 message with no matching binding, so the consumers must be up and bound when
-auth-service publishes the seed accounts at startup (`docs/api-examples.md`
-records the staged boot). Later events do not have this problem.
+auth-service publishes the seed accounts at startup (`api-examples.md` records
+the staged boot). Later events do not have this problem.
 
 ### Synchronous calls
 
-The frontend bounds every outgoing gRPC call with a **10-second deadline**
-(`grpcCallTimeout`, used by `authCtx` in
-`frontend/internal/handler/handler.go`). A hung service fails the page render
-instead of holding it open. `grpcToHTTPStatus` in `render.go` maps
-`DeadlineExceeded` and `Unavailable` to a **503**.
+The frontend bounds every outgoing gRPC call with a **10-second deadline**. A
+hung service fails the page render instead of holding it open, and the timeout
+reaches the user as a `503`.
 
 ### Duplicate delivery
 
 RabbitMQ delivery is at-least-once. The notification consumer does not
 de-duplicate, so a redelivered event creates a duplicate notification. The feed
-is append-only, so a duplicate is visible but does not corrupt state. This is a
-documented limitation instead of an idempotency key.
+is append-only, so a duplicate is visible but does not corrupt state.
 
 ## Service endpoints
 
@@ -321,10 +300,6 @@ generated gateway routes, not the two hand-written streaming routes.
 | assignment-service | `50055` (gRPC) / `8080` (REST) - internal |
 | frontend | `8080` - internal, not published to the host |
 
-Every backend REST listener uses port `8080`. `docker-compose.yml` sets it
-explicitly, because `nginx.conf` hard-codes that port for all backends; a silent
-change to the default would 502 every API route.
-
 | Technology | Used for |
 | --- | --- |
 | Go + `log/slog` | All services, structured JSON logging |
@@ -362,16 +337,6 @@ renders HTML and reads over gRPC, and owns no domain data or `/api/*` routes.
 
 ### Data ownership
 
-| Data | Owner | Store |
-| --- | --- | --- |
-| Accounts / credentials | auth-service | SQLite |
-| Profiles | profile-service | SQLite |
-| Courses, enrolments | course-catalogue-service | SQLite |
-| Modules (course content) | course-content-service | CloverDB |
-| Assignments, submissions, grades | assignment-service | SQLite |
-| Submission files | assignment-service | Local filesystem |
-| Notifications | notification-service | SQLite |
-
 No service reads another's tables. A service asks the owner over its API, or
 keeps a projection built from an event (profile-service rows come from
 `account.created`). The catalogue stores only the student ID on an enrolment and
@@ -381,10 +346,7 @@ fetches the name from profile-service when needed.
 
 - The frontend depends synchronously on all six services.
 - The services do not call each other synchronously. The only coupling is
-  asynchronous, through `university.events`: auth-service publishes
-  `account.created`, the catalogue `course.enrolled`, and assignment
-  `grade.published`; notification-service consumes all three, and profile-service
-  consumes `account.created`.
+  asynchronous, through `university.events` (see the event table above).
 
 Thus a service can be rebuilt, restarted, or rescaled while the others stay
 unchanged. But event consumers must be bound before the event is published.
@@ -395,22 +357,16 @@ unchanged. But event consumers must be bound before the event is published.
   auth and logging path and gives a real REST surface for the assessment.
 - Eventual consistency for notifications: enrolment returns before the
   notification exists.
-- No outbox: an event can be lost if the broker is down at publish time.
-- No TLS, no rate limiting, no health checks, stock `guest:guest`: acceptable on
-  one private network, not production-ready.
 - Stateless JWT sessions: no session store to scale, but no server-side
   revocation. A token stays valid until it expires.
 
 ### At scale
 
-- Scale the services horizontally. They are stateless apart from the embedded
-  databases. Nginx would need upstream groups; RabbitMQ competing consumers
-  would share each durable queue. (Phase 5, out of scope.)
-- Move to a networked database per service, with connection pooling.
-- Add a transactional outbox, so an event is never lost between commit and
-  publish.
-- Add TLS/mTLS, broker secret injection, health checks, gateway rate limiting.
-- Make the notification consumer idempotent on `event_id`.
+- **Horizontal scaling and a networked database per service.** The services are
+  stateless apart from their embedded stores; Nginx would need upstream groups
+  and RabbitMQ competing consumers. (Phase 5, out of scope.)
+- **Close the documented gaps:** TLS/mTLS, broker secret injection, health
+  checks, gateway rate limiting, and an idempotent notification consumer.
 
 For the implementation plan and known issues, see [plan.md](plan.md) and
 [notes.md](notes.md).

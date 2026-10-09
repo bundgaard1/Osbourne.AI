@@ -115,13 +115,13 @@ Finally, make sure you can explain your service design, communication, Docker co
 
 ## Thinking microservices 
 
-Service boundaries
+**Service boundaries**
 
 For each service, think about what specific business capability it provides and whether you can explain its responsibility clearly in one sentence. Consider whether the functions within the service belong together and whether the service is genuinely different from the responsibilities of your other services. You can also ask yourself whether the service would still make sense as a separate component if your system became larger.
 
 For example, separating student profiles, course information, feedback, and notifications can be reasonable because each represents a different business capability. On the other hand, dividing one small operation into several very small or almost empty services may be more difficult to justify.
 
-Independence and coupling
+**Independence and coupling**
 
 Another important part of microservices is independence. Ideally, one service should be able to be developed, rebuilt, or restarted without requiring every other service to be changed at the same time.
 
@@ -129,13 +129,13 @@ Please think about whether each service has its own application code and contain
 
 For example, directly importing another service's Python code creates a strong dependency between the services. Communication through a clearly defined API or other interface provides a clearer separation between them.
 
-Data ownership
+**Data ownership**
 
 Please also think carefully about data ownership. For each type of information in your system, consider which service is responsible for creating and updating it. If another service needs that information, does it really need direct access to the data, or could it request the information through the service that owns it?
 
 Several services may use the same PostgreSQL or MongoDB server in a prototype, and this is not necessarily a problem. However, your design should still make it clear which service is responsible for which data. Sharing a database should not mean that the boundaries between your services disappear.
 
-Communication choices
+**Communication choices**
 
 When choosing how your services communicate, try to select a method that makes sense for the particular interaction rather than choosing a technology simply because it seems more advanced.
 
@@ -145,7 +145,7 @@ HTTP, TCP, gRPC, and message queues can all be used for communication between se
 
 Please also remember that using gRPC or a message queue for internal communication does not automatically replace the assignment's RESTful API requirement. If you choose to use gRPC internally, you should still consider how your REST endpoints will provide the required external interface.
 
-Failure and resilience
+**Failure and resilience**
 
 Because microservices are distributed systems, it is important to think about what happens when one service is not available. You do not need to build a production-level fault-tolerant system for this assignment, but demonstrating that you have considered these situations will show a stronger understanding of distributed applications.
 

@@ -44,8 +44,7 @@ Account creation is not available. These seeds are the only accounts.
 ## Evidence
 
 - **[docs/api-examples.md](docs/api-examples.md)** - real `curl` request and
-  response pairs: the login, an enrolment, the notification that follows, and
-  the 401/404 error shape.
+  response pairs: the login, an enrolment, and the notification that follows.
 - **[docs/screenshots/](docs/screenshots/)** - the Docker stack, the UI, the
   RabbitMQ queue counters, one `request_id` in the logs, the error responses,
   and data after `docker compose restart`. The capture plan is in that folder's
@@ -54,7 +53,7 @@ Account creation is not available. These seeds are the only accounts.
 ## Tech stack
 
 - **Go** for all services.
-- **Go + Templ + `chi`** for the server-rendered frontend. It serves HTML only.
+- **Go + Templ + `chi`** for the server-rendered frontend.
 - **Nginx** for the API Gateway. It routes `/api/*` to the owning service and
   the rest to the frontend, and adds `X-Request-ID`.
 - A **dual listener** in every backend: gRPC for internal calls, and a
@@ -84,22 +83,19 @@ Account creation is not available. These seeds are the only accounts.
 - **Frontend UI** (`frontend`): the server-rendered dashboard. Reads from all
   services over gRPC.
 
-The frontend uses gRPC for page data. Browser `/api/*` calls go through the
-gateway to the owning service's REST listener, which turns them back into gRPC
-so the same auth and logging interceptors apply. The browser never receives a
-JWT: auth-service sends it in an `HttpOnly` cookie, removes it from the JSON
-body, and derives the role on the server. The login form has no role input.
-Shared code (logging, JWT parsing, gRPC interceptors, the gateway listener,
-request-ID correlation) is in the `common` module.
+The frontend reads page data over gRPC. Browser `/api/*` calls go through the
+gateway to the owning service's REST listener. Shared code (logging, JWT
+parsing, gRPC interceptors, the gateway listener, request-ID correlation) is in
+the `common` module. See [docs/design.md](docs/design.md) for the request flow.
 
 ## API endpoints
 
 Every browser call goes to the gateway at `http://localhost` and is served by
-the owning service's REST listener. The frontend serves HTML only. The surface
-has **25 endpoints**: 23 from the protobuf `google.api.http` annotations, plus
-two hand-written streaming routes. Authenticated routes need the session cookie
-or an explicit `Authorization: Bearer` header. Every failure uses the JSON shape
-in [docs/api-examples.md](docs/api-examples.md).
+the owning service's REST listener. The surface has **25 endpoints**: 23 from
+the protobuf `google.api.http` annotations, plus two hand-written streaming
+routes. Authenticated routes need the session cookie or an explicit
+`Authorization: Bearer` header. Every failure uses one JSON shape; see
+[docs/api-examples.md](docs/api-examples.md).
 
 ### auth-service
 
@@ -149,9 +145,9 @@ in [docs/api-examples.md](docs/api-examples.md).
 | `POST` | `/api/assignments/{assignment_id}/submissions` | Upload a submission (multipart, streaming) |
 | `GET` | `/api/submissions/{submission_id}/file` | Download a submission (binary, streaming) |
 
-The last two are hand-written (`mux.HandlePath`), not generated. They stream a
-file instead of base64-encoding it in JSON. The application caps uploads at
-10 MB. Nginx allows 12 MB for the multipart envelope.
+The last two are hand-written. They stream the file instead of base64-encoding
+it in JSON. The application caps uploads at 10 MB; nginx allows 12 MB for the
+multipart envelope.
 
 ### notification-service
 
@@ -189,15 +185,14 @@ documented `curl` calls. The captured results are the evidence in
 
 ## Known limitations
 
-- **gRPC is unencrypted.** Internal traffic uses `insecure` credentials, with no
-  TLS or mTLS. Acceptable on the private Compose network, not production-ready.
+- **No TLS/mTLS, no rate limiting, no health checks.** Internal gRPC uses
+  `insecure` credentials. No service exposes `/healthz` or a Docker
+  `HEALTHCHECK` (only RabbitMQ has one), and the gateway has no rate limit.
+  Acceptable on the private Compose network, not production-ready.
 - **RabbitMQ uses the stock `guest:guest` credentials**, and the management
   dashboard is at `localhost:15672`. Docker Compose does not interpolate `.env`
   into the service `environment:` blocks, so these are not configurable from
   `.env` (noted in `.env.example`).
-- **No rate limiting** on the gateway or any service.
-- **No health checks** on the Go services. No service exposes `/healthz` and
-  none has a Docker `HEALTHCHECK`; only RabbitMQ has one.
 - **The notification consumer is not idempotent.** RabbitMQ delivery is
   at-least-once, so a redelivered event can create a duplicate notification.
 
@@ -205,5 +200,3 @@ documented `curl` calls. The captured results are the evidence in
 
 - [API examples](docs/api-examples.md) - real `curl` request and response pairs from a running stack, including the failures.
 - [Design document](docs/design.md) - architecture, isolation, service endpoints, event catalog, and request correlation.
-- [Plan / issues](docs/plan.md) - the implementation plan and known issues.
-- [Notes](docs/notes.md) - project notes.

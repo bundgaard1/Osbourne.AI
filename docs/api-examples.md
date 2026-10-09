@@ -7,9 +7,8 @@ are removed.
 ## How to capture
 
 ```bash
-# Start the consumers first, then everything else. See the note below.
+# Start the consumers before the publishers so their queues are bound.
 docker compose up -d rabbitmq profile-service notification-service
-#   ...wait for both consumers to log that they are listening...
 docker compose up -d
 
 curl -i -sS -c cookies.txt -X POST http://localhost/api/auth/login \
@@ -18,32 +17,25 @@ curl -i -sS -c cookies.txt -X POST http://localhost/api/auth/login \
 curl -i -sS -b cookies.txt ...             # later calls reuse that cookie
 ```
 
-The staged start is necessary. auth-service publishes `account.created` for the
-two seed accounts when it boots, onto a topic exchange. A consumer whose queue is
-not yet bound never sees those events, so the profile rows and the welcome
-notification in example 3 do not exist. The run therefore starts the two
-consumers, waits for them to report that they are listening, then starts the
-publishers.
+auth-service publishes `account.created` for the seed accounts when it boots.
+A topic exchange drops a message with no bound queue, so the consumers must be
+up first (`docs/screenshots/README.md` has the full capture plan).
 
-- Base URL: `http://localhost`, the nginx API gateway and the only
-  host-exposed application port. No per-service port is published, so these
-  paths exist only because the gateway routes them.
-- Stack: commit `90cf51b`, run on 2026-09-29 local time from a clean
-  `docker compose down -v`, so the databases were freshly seeded. The `Date`
-  headers and the body timestamps are UTC.
+- Base URL: `http://localhost`, the nginx API gateway and the only host-exposed
+  application port.
+- Stack: commit `90cf51b`, run on 2026-09-29 from a clean `docker compose down -v`.
 - Account: the seeded student `student@osbourne.local` / `student123`
   (`user_id` `12345`).
 
-Two facts apply to every response. **No JWT appears in a response body**: login
-sends the token as an `HttpOnly` cookie and blanks it from the JSON, so
-`Set-Cookie` is the only place the raw token appears (abbreviated `<jwt>` here).
+**No JWT appears in a response body.** Login sends the token as an `HttpOnly`
+cookie and blanks it from the JSON, so `Set-Cookie` is the only place the raw
+token appears (abbreviated `<jwt>` here).
+
 **Every response has an `X-Request-Id`, and it is the same id in the service
-logs**: the gateway makes it, promotes it into gRPC metadata, and echoes it
-back. Quote it when you report a failure.
+logs.** Quote it when you report a failure.
 
 Field names use the protobuf names, not camelCase, except `isRead`, whose proto
-field is spelled that way. The `int64` field `size` is a JSON string, which is
-what `protojson` does with `int64`.
+field is spelled that way.
 
 ---
 
@@ -73,14 +65,12 @@ X-Request-Id: 62641180d692f77475cc498c9f62e95f
 {"user_id":"12345", "email":"student@osbourne.local", "role":"student"}
 ```
 
-- **`Set-Cookie` is the only copy of the token.** `HttpOnly` keeps it away from
-  JavaScript, so an XSS cannot read the session. `SameSite=Lax` and
-  `Max-Age=7200` match the token lifetime of 120 minutes. The service makes the
-  cookie inside the RPC; the gateway emits it.
-- **The body has no `token` field.** The service blanks the token before
-  serialisation, and proto3 drops the empty string.
-- **The service derives `role` on the server** from the stored account. The
-  login request cannot ask to be a teacher.
+- **`Set-Cookie` is the only copy of the token.** `HttpOnly` keeps it from
+  JavaScript, and `SameSite=Lax` with `Max-Age=7200` matches the 120-minute
+  token lifetime.
+- **The body has no `token` field.**
+- **The service derives `role` on the server**, so the login request cannot ask
+  to be a teacher.
 
 The gateway then promotes this cookie to `Authorization: Bearer <jwt>` on every
 later request and drops the raw `Cookie` header, so the services never see the
@@ -265,9 +255,6 @@ X-Request-Id: 1a7eb3a61af5514945d868894129b48b
 
 {"code":404,"success":false,"message":"unknown API route"}
 ```
-
-Without the catch-all, a mistyped `/api/` URL would fall through to the frontend
-and return HTML, which is a syntax error for any client parsing JSON.
 
 A service 404 looks the same but names the resource, e.g.
 `GET /api/courses/1/modules/does-not-exist`:
