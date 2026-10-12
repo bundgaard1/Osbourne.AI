@@ -14,7 +14,7 @@ services:
   api-gateway:
     image: nginx:alpine
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       # proxy-common.conf and proxy-api.conf hold the header rules that
@@ -66,9 +66,6 @@ services:
       dockerfile: auth-service/Dockerfile
     environment:
       - PORT=50056
-      # REST listener for the nginx api-gateway. Spelled out because
-      # nginx.conf hard-codes 8080 for every backend, so a silent change to the
-      # default in common.GatewayMux would 502 every route with no other clue.
       - HTTP_PORT=8080
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - DB_PATH=/app/data/auth.db

@@ -6,6 +6,10 @@ vars: {
   }
 }
 
+**.style.font-size: 55
+(** -> **)[*].style.font-size: 55
+(** -> **)[*].style.font-color: black
+
 direction: right
 
 U: Browser
@@ -27,7 +31,7 @@ BE: Backend Services (dual listeners) {
 }
 
 MQ: Message Queue (async events) {
-  Q: "RabbitMQ\nuniversity.events (topic, durable)" {
+  Q: "RabbitMQ\nuniversity.events\n(topic, durable)" {
     shape: cylinder
   }
 }

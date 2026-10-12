@@ -21,7 +21,7 @@ cp .env.example .env   # Optional: override configuration (defaults match the co
 docker compose up --build   # Builds and starts all services in containers
 ```
 
-- Dashboard: **http://localhost:80**. The API Gateway (Nginx) is the only
+- Dashboard: **http://localhost:8080**. The API Gateway (Nginx) is the only
   host-exposed application port.
 - RabbitMQ management console: **http://localhost:15672** (`guest` / `guest`).
 
@@ -43,12 +43,13 @@ Account creation is not available. These seeds are the only accounts.
 
 ## Evidence
 
+- **[docs/evidence.md](docs/evidence.md)** - consolidated evidence with descriptions of all
+  diagrams and screenshots (Docker stack, UI, RabbitMQ/async flow, request ID
+  correlation, error responses, and persistence across restart).
+- **[docs/screenshots/](docs/screenshots/)** - raw screenshot files and the
+  capture plan ([README.md](docs/screenshots/README.md)).
 - **[docs/api-examples.md](docs/api-examples.md)** - real `curl` request and
-  response pairs: the login, an enrolment, and the notification that follows.
-- **[docs/screenshots/](docs/screenshots/)** - the Docker stack, the UI, the
-  RabbitMQ queue counters, one `request_id` in the logs, the error responses,
-  and data after `docker compose restart`. The capture plan is in that folder's
-  `README.md`.
+  response pairs from a running stack, including the failures.
 
 ## Tech stack
 
@@ -90,7 +91,7 @@ the `common` module. See [docs/design.md](docs/design.md) for the request flow.
 
 ## API endpoints
 
-Every browser call goes to the gateway at `http://localhost` and is served by
+Every browser call goes to the gateway at `http://localhost:8080` and is served by
 the owning service's REST listener. The surface has **25 endpoints**: 23 from
 the protobuf `google.api.http` annotations, plus two hand-written streaming
 routes. Authenticated routes need the session cookie or an explicit
@@ -125,5 +126,5 @@ are the evidence in [docs/api-examples.md](docs/api-examples.md) and
 
 ## Docs
 
-- [API examples](docs/api-examples.md) - real `curl` request and response pairs from a running stack, including the failures.
+- [Evidence](docs/evidence.md) - descriptions of all diagrams and screenshots (including error cases and persistence).
 - [Design document](docs/design.md) - architecture, isolation, service endpoints, event catalog, and request correlation.

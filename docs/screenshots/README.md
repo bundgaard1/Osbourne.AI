@@ -151,16 +151,16 @@ Do **not** include `.env`, tokens, or the raw `Set-Cookie` value in any shot.
 
 ## Checklist
 
-- [ ] `01-compose-ps.png` — full stack up (`docker compose ps`)
-- [ ] `02-login-dashboard.png` — login page
-- [ ] `03-dashboard.png` — dashboard after login
-- [ ] `04-enrol.png` — enrolment from the UI
-- [ ] `05-notification.png` — enrolment notification in the inbox
-- [ ] `06-rabbitmq-queues.png` — `localhost:15672` queue counters
-- [ ] `07-event-logs.png` — publisher/consumer logs, same `event_id` (optional)
-- [ ] `08-request-id-trace.png` — one `request_id` across nginx → frontend → service
-- [ ] `09-error-401.png` — 401 with no token
-- [ ] `10-error-gateway-404.png` — gateway 404 for an unknown `/api/` path
-- [ ] `11-error-service-404.png` — service 404 for `GET /api/courses/9999`
-- [ ] `12a-before-restart.png` / `12b-after-restart.png` — persistence
+- [x] `01-compose-ps.png` — full stack up (`docker compose ps`)
+- [x] `02-login-dashboard.png` — login page
+- [x] `03-dashboard.png` — dashboard after login
+- [x] `04-enrol.png` — enrolment from the UI
+- [x] `05-notification.png` — enrolment notification in the inbox
+- [ ] `06-rabbitmq-queues.png` — `localhost:15672` queue counters, dont need it
+- [x] `07-event-logs.png` — publisher/consumer logs, same `event_id` (optional)
+- [x] `08-request-id-trace.png` — one `request_id` across nginx → frontend → service
+- [x] `09-error-401.png` — 401 with no token
+- [x] `10-error-gateway-404.png` — gateway 404 for an unknown `/api/` path
+- [x] `11-error-service-404.png` — service 404 for `GET /api/courses/9999`
+- [x] `12a-before-restart.png` / `12b-after-restart.png` — persistence
 - [ ] README `## Evidence` gallery wired in

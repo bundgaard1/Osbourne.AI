@@ -8,9 +8,11 @@ pages and calls the backend services over gRPC. The **API Gateway** (Nginx) is
 the only ingress; every other browser call goes through it to the owning
 service.
 
-Every service runs a **dual listener**: a gRPC server for internal calls, and a
-grpc-gateway REST listener in front of the same server. The REST listener dials
-gRPC over loopback instead of calling the implementation in-process.
+Every service runs a dual listener: 
+- a gRPC server for internal calls
+- a grpc-gateway REST listener in front of the same server. 
+
+The REST listener dials gRPC over loopback instead of calling the implementation in-process.
 
 ![Architecture diagram](diagrams/arch-diagram.png)
 
@@ -104,6 +106,8 @@ events.
 | Assignments, submissions, grades | assignment-service | SQLite |
 | Submission files | assignment-service | Local filesystem |
 | Notifications | notification-service | SQLite |
+
+SQLite is a single-file relational database, Each service implements a repository database layer with GORM. 
 
 ## Authentication and session flow
 
@@ -228,7 +232,7 @@ is append-only, so a duplicate is visible but does not corrupt state.
 Generated from `google.api.http` annotations. Each service's grpc-gateway
 listener serves them on its internal `:8080`.
 
-| Method | Path | Service | RPC |
+| Method | REST Path | Service | RPC |
 | --- | --- | --- | --- |
 | POST | `/api/auth/login` | auth | `Login` |
 | POST | `/api/auth/validate` | auth | `ValidateToken` |
@@ -362,6 +366,6 @@ unchanged. But event consumers must be bound before the event is published.
 
 - **Horizontal scaling and a networked database per service.** The services are
   stateless apart from their embedded stores; Nginx would need upstream groups
-  and RabbitMQ competing consumers. (Phase 5, out of scope.)
+  and RabbitMQ competing consumers.
 - **Close the documented gaps:** TLS/mTLS, broker secret injection, health
   checks, gateway rate limiting, and an idempotent notification consumer.
