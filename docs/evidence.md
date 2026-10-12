@@ -74,6 +74,19 @@ Error handling - missing resource (service 404):
 - Response shows HTTP 404 with shared JSON error shape: `{"code":404,"success":false,"message":"course not found"}`. 
 - Demonstrates correct service-layer 404 for missing resource (the regression fix).
 
+## Role-based UI
+
+![screenshots/10a-teacher-assignments.png](screenshots/10a-teacher-assignments.png)
+Teacher view (role: teacher):
+- Logged in as Dr. Jane Teacher (teacher@osbourne.local). 
+- Shows assignments UI with teacher-facing controls/actions for managing assignments.
+- Demonstrates role-based rendering/permissions in the frontend based on authenticated user role.
+
+![screenshots/10b-student-assignment.png](screenshots/10b-student-assignment.png)
+Student view (role: student):
+- Logged in as Andy Osborne (student@osbourne.local).
+- Shows assignment view from student perspective (no teacher management controls).
+- Demonstrates role-based UI differences between student and teacher roles.
 
 ## Persistence across restart
 
