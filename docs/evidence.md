@@ -26,24 +26,24 @@ Login page (UI state) as part of login flow; displays the login form with seeded
 
 ![screenshots/03-dashboard.png](screenshots/03-dashboard.png)
 Dashboard view after signing in as student@osbourne.local:
-- User context shown (logged in as student). 
+- User context shown (logged in as student).
 - Dashboard content populated from backend over gRPC (profile data, enrolments/listings rendered server-side via Go+Templ). Demonstrates frontend → backend gRPC path functioning.
 
 ## Enrollment flow
 
 ![screenshots/04-enroll.png](screenshots/04-enroll.png)
 Enrollment action captured from the UI:
-- Student enrolling in a course from the catalogue. 
+- Student enrolling in a course from the catalogue.
 - Shows enrollment interaction/page state; this action triggers `course.enrolled` event published by course-catalogue-service.
 
 ![screenshots/05-enroll-system-logs.png](screenshots/05-enroll-system-logs.png)
 System logs captured around enrollment time (publisher/consumer logs):
-- Shows course-catalogue-service publishing `course.enrolled` and notification-service consuming it (same event correlation). 
+- Shows course-catalogue-service publishing `course.enrolled` and notification-service consuming it (same event correlation).
 - Provides end-to-end trace of the asynchronous flow across services (event ID/event type visible in logs).
 
 ![screenshots/06-notifications.png](screenshots/06-notifications.png)
 Notification inbox view at `/notifications`:
-- Shows new notification `Enrolled in Course: ...` created as a result of the enrollment. 
+- Shows new notification `Enrolled in Course: ...` created as a result of the enrollment.
 - Demonstrates asynchronous consequence: notification exists because notification-service consumed the `course.enrolled` event (caller never directly touched notification service).
 
 ## Request ID correlation
@@ -51,7 +51,7 @@ Notification inbox view at `/notifications`:
 ![screenshots/08-request-id-trace.png](screenshots/08-request-id-trace.png)
 Request ID correlation trace:
 - Browser/network context showing `X-Request-Id` value from a response.
-- Terminal/log output showing the same request ID appearing in logs across nginx/frontend/backend services. 
+- Terminal/log output showing the same request ID appearing in logs across nginx/frontend/backend services.
 - Proves end-to-end request correlation as described in design.
 
 ## Bad request handling
@@ -59,26 +59,26 @@ Request ID correlation trace:
 ![screenshots/09a-no-token.png](screenshots/09a-no-token.png)
 Error handling - no token (auth interceptor):
 - `curl` request to `http://localhost/api/profile` without authentication.
-- Response shows HTTP 401 with shared JSON error shape: `{"code":401,"success":false,"message":"missing or invalid bearer token"}`. 
+- Response shows HTTP 401 with shared JSON error shape: `{"code":401,"success":false,"message":"missing or invalid bearer token"}`.
 - Proves unauthenticated requests are rejected with JSON (not HTML).
 
 ![screenshots/09b-unknown-path.png](screenshots/09b-unknown-path.png)
 Error handling - unknown /api/ path (gateway catch-all):
 - `curl` to `http://localhost/api/does-not-exist`.
-- Response shows HTTP 404 with shared JSON error shape: `{"code":404,"success":false,"message":"unknown API route"}`. 
+- Response shows HTTP 404 with shared JSON error shape: `{"code":404,"success":false,"message":"unknown API route"}`.
 - Proves unrouted API paths return JSON from gateway (not frontend HTML).
 
 ![screenshots/09c-resource-not-found.png](screenshots/09c-resource-not-found.png)
 Error handling - missing resource (service 404):
 - `curl` to `http://localhost/api/courses/9999` with valid session cookie.
-- Response shows HTTP 404 with shared JSON error shape: `{"code":404,"success":false,"message":"course not found"}`. 
+- Response shows HTTP 404 with shared JSON error shape: `{"code":404,"success":false,"message":"course not found"}`.
 - Demonstrates correct service-layer 404 for missing resource (the regression fix).
 
 ## Role-based UI
 
 ![screenshots/10a-teacher-assignments.png](screenshots/10a-teacher-assignments.png)
 Teacher view (role: teacher):
-- Logged in as Dr. Jane Teacher (teacher@osbourne.local). 
+- Logged in as Dr. Jane Teacher (teacher@osbourne.local).
 - Shows assignments UI with teacher-facing controls/actions for managing assignments.
 - Demonstrates role-based rendering/permissions in the frontend based on authenticated user role.
 
@@ -92,7 +92,7 @@ Student view (role: student):
 
 ![screenshots/12-persistence-across-restart.png](screenshots/12-persistence-across-restart.png)
 Persistence - after restart:
-- Shows the same data (same notification ids/rows) still present after restart. 
+- Shows the same data (same notification ids/rows) still present after restart.
 - Demonstrates persistence via named volumes (not in-container state).
 
-Note: The screenshots/README.md checklist also lists 01-compose-ps.png as the intended filename for the full stack; the actual file present is 01-whole-stack.png. Both represent the same evidence (docker compose ps). 
+Note: The screenshots/README.md checklist also lists 01-compose-ps.png as the intended filename for the full stack; the actual file present is 01-whole-stack.png. Both represent the same evidence (docker compose ps).
