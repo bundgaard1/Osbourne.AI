@@ -75,15 +75,15 @@ Cross-checked against `tips-from-bingji.md` and the open items in `docs/plan.md`
 Capture plan written: `docs/screenshots/README.md` (filenames, commands, expected
 output, and the README gallery snippet).
 
-- [ ] `docker compose ps` — full stack up.
-- [ ] Login / dashboard (UI works end to end).
-- [ ] Enrol → notification appears, **plus** RabbitMQ dashboard (`localhost:15672`) queue
+- [x] `docker compose ps` — full stack up.
+- [x] Login / dashboard (UI works end to end).
+- [x] Enrol → notification appears, **plus** RabbitMQ dashboard (`localhost:15672`) queue
       counters — proves service-to-service comms over the message queue.
-- [ ] `docker compose logs` showing one shared `request_id` across nginx → frontend/service.
+- [x] `docker compose logs` showing one shared `request_id` across nginx → frontend/service.
 - [ ] Error set: 401 (no token), gateway 404 (unknown `/api/` path), service 404
       (`GET /api/courses/9999` after fix).
-- [ ] Persistence: `docker compose restart`, data still there (named volumes).
-- [ ] Wire captured images into `docs/screenshots/` + README Evidence section.
+- [x] Persistence: `docker compose restart`, data still there (named volumes).
+- [x] Wire captured images into `docs/screenshots/` + README Evidence section.
 
 ## D. Verification (run at the end)
 

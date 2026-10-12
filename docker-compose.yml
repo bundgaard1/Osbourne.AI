@@ -16,7 +16,7 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       # proxy-common.conf and proxy-api.conf hold the header rules that
       # nginx.conf includes. Without this the gateway cannot parse its own
       # config and exits, so the two mounts have to stay together.

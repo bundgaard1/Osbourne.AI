@@ -74,7 +74,7 @@ done
 echo "==> starting gateway"
 docker run -d --name "gateway-$NET" --network "$NET" \
     -p "127.0.0.1:${GATEWAY_PORT}:80" \
-    -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" \
+    -v "$PWD/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
     -v "$PWD/nginx/includes:/etc/nginx/includes:ro" \
     nginx:alpine >/dev/null
 CONTAINERS+=("gateway-$NET")
